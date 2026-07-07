@@ -1,4 +1,4 @@
-# Twin Study — Product Requirements (Foundation, UI-only)
+# Aroha — Product Requirements (Foundation, UI-only)
 
 ## Vision
 A premium, calming AI Digital Twin educational companion. Serves three personas — independent Student, Parent, and Child — with a warm, hand-drawn, Headspace-inspired aesthetic.

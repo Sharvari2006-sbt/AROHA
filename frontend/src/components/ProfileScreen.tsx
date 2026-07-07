@@ -23,7 +23,7 @@ const MENU: { label: string; icon: keyof typeof import('@expo/vector-icons').Fea
   { label: 'Notifications', icon: 'bell' },
   { label: 'Privacy & Data', icon: 'shield' },
   { label: 'Help Center', icon: 'help-circle' },
-  { label: 'About Twin Study', icon: 'info' },
+  { label: 'About Aroha', icon: 'info' },
 ];
 
 export default function ProfileScreen({ role, name, email, stats, testID }: Props) {

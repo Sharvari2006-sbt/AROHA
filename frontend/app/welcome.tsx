@@ -106,9 +106,9 @@ export default function Welcome() {
         <Animated.View style={headerStyle}>
           <View style={styles.brandRow}>
             <View style={styles.brandBadge}>
-              <Text style={styles.brandBadgeText}>TS</Text>
+              <Text style={styles.brandBadgeText}>A</Text>
             </View>
-            <Text style={styles.brandName}>Twin Study</Text>
+            <Text style={styles.brandName}>Aroha</Text>
           </View>
           <Text style={styles.eyebrow}>WELCOME</Text>
           <Text style={styles.heading}>Your AI Digital Twin{'\n'}that grows with you.</Text>

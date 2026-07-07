@@ -115,12 +115,12 @@ export default function Splash() {
 
       <Animated.View style={[styles.logoWrap, logoStyle]}>
         <View style={styles.logoBadge}>
-          <Text style={styles.logoBadgeText}>TS</Text>
+          <Text style={styles.logoBadgeText}>A</Text>
         </View>
       </Animated.View>
 
       <Animated.View style={[styles.titleWrap, titleStyle]}>
-        <Text style={styles.title}>Twin Study</Text>
+        <Text style={styles.title}>Aroha</Text>
         <Text style={styles.subtitle}>Your calm learning companion</Text>
       </Animated.View>
     </View>

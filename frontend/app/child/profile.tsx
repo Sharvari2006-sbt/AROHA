@@ -5,7 +5,7 @@ export default function ChildProfile() {
     <ProfileScreen
       role="child"
       name="Mia Sharma"
-      email="mia@twinstudy.app"
+      email="mia@aroha.app"
       stats={[
         { label: 'Stars', value: '12' },
         { label: 'XP', value: '320' },

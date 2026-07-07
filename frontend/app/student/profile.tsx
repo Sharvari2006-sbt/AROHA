@@ -5,7 +5,7 @@ export default function StudentProfile() {
     <ProfileScreen
       role="student"
       name="Alex Rivera"
-      email="alex@twinstudy.app"
+      email="alex@aroha.app"
       stats={[
         { label: 'Streak', value: '7d' },
         { label: 'Subjects', value: '4' },

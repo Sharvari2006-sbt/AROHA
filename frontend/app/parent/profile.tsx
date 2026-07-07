@@ -5,7 +5,7 @@ export default function ParentProfile() {
     <ProfileScreen
       role="parent"
       name="Priya Sharma"
-      email="priya@twinstudy.app"
+      email="priya@aroha.app"
       stats={[
         { label: 'Children', value: '3' },
         { label: 'Plans', value: '5' },

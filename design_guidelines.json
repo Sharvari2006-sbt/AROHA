@@ -1,0 +1,179 @@
+{
+  "app_name": "Twin Study",
+  "personality": "8 Hand-Drawn / Journal LIGHT colors and structure with 4 Tactile / Playful surfaces and large radii",
+  "personality_one_liner": "An elegant, calming, and friendly AI digital twin companion with a playful hand-drawn feel, warm cream tones, and soft floating cards.",
+  "color": {
+    "surface": "#FDFBF7",
+    "onSurface": "#4A4036",
+    "surfaceSecondary": "#FFFFFF",
+    "onSurfaceSecondary": "#4A4036",
+    "surfaceTertiary": "#F5EFEB",
+    "onSurfaceTertiary": "#4A4036",
+    "surfaceInverse": "#4A4036",
+    "onSurfaceInverse": "#FDFBF7",
+    "brand": "#9CAF88",
+    "brandPrimary": "#9CAF88",
+    "onBrandPrimary": "#FDFBF7",
+    "brandSecondary": "#F4A261",
+    "onBrandSecondary": "#4A4036",
+    "brandTertiary": "#E9C46A",
+    "onBrandTertiary": "#4A4036",
+    "success": "#A3B18A",
+    "onSuccess": "#FFFFFF",
+    "warning": "#E9C46A",
+    "onWarning": "#4A4036",
+    "error": "#E78A61",
+    "onError": "#FFFFFF",
+    "info": "#A8DADC",
+    "onInfo": "#4A4036",
+    "border": "#EBE3DB",
+    "borderStrong": "#D6C7B8",
+    "divider": "#EBE3DB"
+  },
+  "typography": {
+    "displayFontFamily": "Nunito",
+    "textFontFamily": "Inter",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use 8pt grid system. Generous padding around content to feel calming like Headspace. No dense dashboards.",
+    "xs": 4,
+    "sm": 8,
+    "md": 16,
+    "lg": 24,
+    "xl": 32,
+    "2xl": 40,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 12,
+    "md": 16,
+    "lg": 24,
+    "pill": 999
+  },
+  "shadow_tier": "2",
+  "navigation": "bottom_tabs",
+  "icon_set": "Feather",
+  "glassmorphism": {
+    "enabled": "false",
+    "do's": [
+      "Use soft, solid surface color layering and Skia organic background shapes instead of glassmorphism to preserve the warm, non-digital, hand-drawn paper feel."
+    ],
+    "dont's": [
+      "Avoid heavy blur or glass effects which make the app look like a standard iOS utility or crypto app."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler",
+    "graphics": "@shopify/react-native-skia",
+    "svg": "react-native-svg"
+  },
+  "screens": [
+    {
+      "name": "Splash",
+      "purpose": "Introduce the premium AI twin experience with a calm, animated welcome.",
+      "states": {
+        "loading": "App load initializes Skia/Reanimated engines",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Warm cream background (surface). App logo with subtle glow. Center: Robot mascot fading in and gently floating (use Reanimated withRepeat/withSequence for Y-axis floating). Soft particle effects in background (Skia). After 2-3 seconds, premium slide+fade transition to Welcome screen."
+    },
+    {
+      "name": "Welcome",
+      "purpose": "Allow user to choose their initial path without full-width button clutter.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Headline 'Your AI Digital Twin that grows with you' in Nunito. Two large, elevated floating cards (surfaceSecondary) vertically stacked. Card 1: 'Independent Learning'. Card 2: 'Supervised Learning'. Each card features an embedded vector illustration/Skia blob, minimal icon in a colored rounded square, and subtle press scale animation (0.95)."
+    },
+    {
+      "name": "RoleSelector",
+      "purpose": "Select specific auth flow type.",
+      "states": {
+        "loading": "N/A",
+        "empty": "N/A",
+        "error": "N/A"
+      },
+      "layout": "Horizontal bento-style cards or vertical list of rounded cards for Student, Parent, Child. Playful hand-drawn SVG icons for each role."
+    },
+    {
+      "name": "Auth",
+      "purpose": "Login/Signup including invite code logic for children.",
+      "states": {
+        "loading": "Spinner in primary CTA",
+        "empty": "N/A",
+        "error": "Soft error toast in error color"
+      },
+      "layout": "Single column form. Input fields with large radius (16px), soft beige (surfaceTertiary) backgrounds, no hard borders. Primary CTA is a pill-shaped button."
+    },
+    {
+      "name": "StudentHome",
+      "purpose": "Main dashboard for independent learners.",
+      "states": {
+        "loading": "Skeleton loaders matching rounded cards",
+        "empty": "Illustration of an open book with soft sage blobs, text 'Ready to learn?'",
+        "error": "Text 'Oops, something went wrong' with retry button"
+      },
+      "layout": "Headspace-inspired layout. Horizontal-scrolling 'Today's Focus' cards (Bento-style). Below, vertical list of upcoming Study Sessions. Floating feature cards with soft organic blob backgrounds (Skia/SVG) and colored rounded square icons. Custom pill-style bottom tab bar."
+    },
+    {
+      "name": "ParentHome",
+      "purpose": "Overview of children's progress.",
+      "states": {
+        "loading": "Skeleton loaders",
+        "empty": "Illustration of parent/child silhouette, 'Add your first student'",
+        "error": "Retry state"
+      },
+      "layout": "Top section: Multi-column grid of child profiles (avatars with sage green borders). Middle: Activity feed of recent quiz scores/completed tasks. Bottom Nav: Home, Schedule, Students, Analytics, Profile."
+    },
+    {
+      "name": "ChildHome",
+      "purpose": "Engaging, playful entry for children.",
+      "states": {
+        "loading": "Bouncing robot icon loader",
+        "empty": "Robot saying 'No tasks today, time to play!'",
+        "error": "Retry state"
+      },
+      "layout": "Large, tactile touch targets. Prominent robot mascot greeting them. Horizontal list of 'My Quizzes' with colorful mustard/orange cards. Bottom Nav: Home, Tasks, Study, Quiz, Profile."
+    }
+  ],
+  "images": {
+    "mascot_placeholder": {
+      "url": "https://images.unsplash.com/photo-1657641898365-48ae7d64e676?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2ODh8MHwxfHNlYXJjaHwyfHxjdXRlJTIwM2QlMjByb2JvdCUyMGNoYXJhY3RlciUyMGZsb2F0aW5nfGVufDB8fHx8MTc4MzQyMzQzMXww&ixlib=rb-4.1.0&q=85",
+      "alt": "A cute floating robot to serve as a placeholder for the animated mascot"
+    },
+    "abstract_blob_placeholder": {
+      "url": "https://images.unsplash.com/photo-1627037558426-c2d07beda3af?crop=entropy&cs=srgb&fm=jpg&ixid=M3w8NjAzMzV8MHwxfHNlYXJjaHwxfHxzb2Z0JTIwYWJzdHJhY3QlMjBtaW5pbWFsaXN0JTIwc2hhcGVzJTIwcGFzdGVsfGVufDB8fHx8MTc4MzQyMzQzMXww&ixlib=rb-4.1.0&q=85",
+      "alt": "Soft abstract minimalist shapes to substitute for Skia blobs if needed"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the color palette: Warm cream background (#FDFBF7), Sage green primary (#9CAF88), Soft orange (#F4A261), Mustard yellow (#E9C46A). Deep espresso (#4A4036) for text.",
+    "Typography: Use Nunito for display/headings for that friendly, rounded feel. Use Inter for body text for optimal readability.",
+    "Use @shopify/react-native-skia or react-native-svg to create the soft organic blob backgrounds for feature cards. Do NOT rely on PNG images for UI elements.",
+    "Splash screen MUST use react-native-reanimated for the floating robot mascot and fading transitions. Create a loop for the floating effect.",
+    "Welcome screen MUST NOT have standard full-width CTA buttons. Use large elevated cards (surfaceSecondary) with Skia blob backgrounds, an icon tile, and descriptive text for 'Independent Learning' and 'Supervised Learning'. Implement a scale-down animation (0.95) on press.",
+    "Corners must be large (24px for primary cards, 16px for secondary/inputs).",
+    "Shadows should be soft and dispersed to emulate floating white paper cards on a cream background.",
+    "Implement a custom pill-style bottom tab bar, floating slightly off the bottom safe area with no hard borders.",
+    "Layout Inspiration: Treat home screens like Headspace — use horizontal scrolling bento-style cards for 'Today's Focus' and generous whitespace, rather than dense list views."
+  ]
+}

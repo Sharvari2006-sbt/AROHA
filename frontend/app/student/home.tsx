@@ -75,7 +75,7 @@ export default function StudentHome() {
               <Text style={styles.heroChipText}>25 min</Text>
             </View>
             <View style={styles.heroChip}>
-              <Feather name="flame" size={12} color={colors.onSurface} />
+              <Feather name="zap" size={12} color={colors.onSurface} />
               <Text style={styles.heroChipText}>4-day streak</Text>
             </View>
           </View>

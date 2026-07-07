@@ -53,7 +53,7 @@ export default function ParentHome() {
               <View style={[styles.progressFill, { width: `${c.progress}%`, backgroundColor: c.color }]} />
             </View>
             <View style={styles.childRow}>
-              <Feather name="flame" size={11} color={colors.orange} />
+              <Feather name="zap" size={11} color={colors.orange} />
               <Text style={styles.childMeta}>{c.streak} day streak</Text>
             </View>
           </PressableCard>

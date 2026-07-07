@@ -31,7 +31,7 @@ export default function Analytics() {
 
       <View style={styles.statsRow}>
         {[
-          { l: 'Streak', v: '7 days', i: 'flame' as const, c: colors.orange },
+          { l: 'Streak', v: '7 days', i: 'zap' as const, c: colors.orange },
           { l: 'Focus', v: '92%', i: 'target' as const, c: colors.brand },
           { l: 'Twin XP', v: '1,240', i: 'award' as const, c: colors.yellow },
         ].map((s) => (

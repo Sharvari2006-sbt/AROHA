@@ -26,7 +26,7 @@ export default function ScreenShell({ greeting, title, subtitle, right, children
           {right}
         </View>
         {children}
-        <View style={{ height: 120 }} />
+        <View style={{ height: 160 }} />
       </ScrollView>
     </SafeAreaView>
   );

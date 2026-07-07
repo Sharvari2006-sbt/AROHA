@@ -1,0 +1,41 @@
+{
+  "summary": "Frontend-only foundation testing for Twin Study Expo app. Tested splash auto-transition, welcome cards, all three auth flows (student/parent/child) including empty-field and invalid-email inline errors, child parent-invite validation, back button, password visibility toggle, all bottom tab bars (student/parent/child), and logout returning to /welcome. 22/23 UI checks pass functionally. The one 'failure' (logout_to_welcome timeout) is a Playwright artifact: the welcome screen DOES render after logout (confirmed via screenshot) but the /welcome route is layered under the previous route's DOM tree with several hidden duplicates of welcome-independent-card, causing wait_for_selector(state='visible') to time-out on the first match. Business behavior is correct. Design/RN nits: (a) tab pill bar overlays the logout button so the user must scroll the profile screen to tap it, (b) console warning 'flame is not a valid Feather icon name' emitted repeatedly, (c) shadow* and pointerEvents deprecation warnings from RN Web. No red screen. No blocking issues.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "ProfileScreen / CustomTabBar", "issue": "Custom pill tab bar is position:absolute and overlays the last item(s) in every profile screen. On 390x844 viewport the 'Log out' button is hidden behind the tab bar until the user scrolls the ScrollView. Add bottom padding equal to tab-bar height + insets to ScreenShell's contentContainerStyle so the last card/button is naturally reachable.", "testID": "logout-btn", "priority": "MEDIUM"},
+      {"component": "Feather icon", "issue": "Console warning: '\"flame\" is not a valid icon name for family \"feather\"'. Emitted from student/study or subjects screens. Replace with a valid Feather icon (e.g. 'zap', 'trending-up', 'award') or switch that icon family to MaterialCommunityIcons which does have 'flame'.", "testID": "n/a", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "All tabbed screens (student/parent/child *)", "issues": ["Bottom pill tab bar overlays trailing content because it is position:absolute. Add paddingBottom (~ 92px + safeAreaInsets.bottom) to the scrollable content container in ScreenShell, or return an equivalent 'tabBarHeight' via useBottomTabBarHeight() so the last card and 'Log out' are not obscured."]},
+      {"screen": "AuthLayout", "issues": ["SafeAreaView edges={['top']} — on devices with bottom insets the scroll view can be flush with the home-indicator. Consider adding 'bottom' or adding paddingBottom for the ScrollView."]}
+    ],
+    "react_native_issues": [
+      {"component": "shadow* style props (multiple components)", "issue": "React Native Web deprecation: '\"shadow*\" style props are deprecated. Use \"boxShadow\"'. Comes from theme.shadow.* usage. Reference: /app/frontend/src/theme.ts and any component using shadow.card/shadow.soft (e.g. CustomTabBar, ProfileScreen)."},
+      {"component": "BlobBackground / AnimatedCard", "issue": "React Native Web deprecation: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/app/welcome.tsx:69 and /app/frontend/app/auth/role.tsx:46 (View pointerEvents=\"none\"). Move to style={{pointerEvents:'none'}}."}
+    ]
+  },
+  "test_report_links": ["/app/test_reports/iteration_1.json"],
+  "action_items": [
+    "Add paddingBottom (tab-bar height + safe-area bottom, ~96) to ScreenShell's ScrollView contentContainerStyle so the 'Log out' button and last cards are not covered by the floating pill tab bar.",
+    "Replace the invalid Feather icon 'flame' with a valid Feather glyph (e.g. 'zap' or 'award') or swap that specific icon to MaterialCommunityIcons.",
+    "Migrate `pointerEvents=\"none\"` props to `style={{ pointerEvents: 'none' }}` in welcome.tsx (line 69) and auth/role.tsx (line 46) to silence RN Web deprecation.",
+    "Migrate `shadow*` style keys in /app/frontend/src/theme.ts to the modern `boxShadow` string to remove the recurring RN Web warning.",
+    "(Optional) Add `edges={['top','bottom']}` to AuthLayout SafeAreaView or add paddingBottom to its ScrollView so the primary CTA is not flush with the home-indicator on tall devices."
+  ],
+  "critical_code_review_comments": [
+    "AuthForm.submit — mock 700ms setTimeout works but no timer cleanup on unmount; if the user navigates away during the delay a router.replace will still fire on an unmounted component. Track the timeout in a ref and clear it in a useEffect cleanup.",
+    "AuthLayout back button uses router.canGoBack() with fallback to router.replace('/welcome'). Good, but on hard-reload of /auth/student-login the back button will land the user on /welcome — verify this is the intended UX (it is, per spec).",
+    "welcome.tsx and role.tsx use inline `pointerEvents=\"none\"` (deprecated on RN Web).",
+    "The custom tab bar overlays content but no `paddingBottom` compensation is applied at the ScrollView level in ScreenShell — a systemic issue across every tabbed screen.",
+    "'flame' icon used with Feather family — Feather glyph map does not include it; will render a fallback and log a runtime warning."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A (no backend in scope)", "frontend": "22/23 UI checks (~96%); the single failing assertion is a Playwright visibility artifact and the underlying behavior is verified via screenshot."},
+  "seed_data_creation": "None (mock auth only).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use viewport 390x844. Splash lives at '/', auto-navigates to /welcome in ~2.8s. Login flow test creds: alex@twinstudy.app / test1234 (student), priya@twinstudy.app / test1234 (parent), mia@twinstudy.app / test1234 with invite TWIN-4821 (child). Any @-containing email + 4+ char password is accepted (mock). AuthForm testIDs follow `${role}-${field}-input` and submit is `${role}-${mode}-submit`. When testing profile → logout, scroll the inner scroll view (document.querySelectorAll & set scrollTop=scrollHeight) because the floating pill tab bar overlays the button. There are multiple hidden duplicates of welcome-independent-card in the DOM after logout (Expo Router route stack) — use page.locator(...).first for state='visible' waits.",
+  "rca_of_issue": "Tab-bar overlap: `CustomTabBar` is `position: 'absolute'` at bottom with rounded pill styling and no compensation is added to `ScreenShell`'s ScrollView contentContainerStyle. On any tabbed screen whose content approaches the bottom (Profile is the worst offender — Log out sits at the very end), the last elements render behind the pill bar and require manual scroll. Fix: read `useBottomTabBarHeight()` (or a hard-coded 92 + insets.bottom) inside `ScreenShell` and pass it to `contentContainerStyle={{ paddingBottom }}`."
+}

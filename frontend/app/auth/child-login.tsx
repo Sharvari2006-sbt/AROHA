@@ -8,7 +8,7 @@ export default function ChildLogin() {
       role="child"
       eyebrow="CHILD"
       title="Hi there, learner!"
-      subtitle="Enter your details and your parent's invite code."
+      subtitle="Sign in and pop in the invite code your parent shared."
       accent={colors.orange}
       homeRoute="/child/home"
       otherModeRoute="/auth/child-signup"

@@ -1,256 +1,207 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useRouter, useFocusEffect } from 'expo-router';
 
 import ScreenShell from '@/src/components/ScreenShell';
 import PressableCard from '@/src/components/PressableCard';
 import BlobBackground from '@/src/components/BlobBackground';
-import RobotMascot from '@/src/components/RobotMascot';
+import Robot3D from '@/src/components/Robot3D';
+import VoiceBubble from '@/src/components/VoiceBubble';
+import EvolutionBar from '@/src/components/EvolutionBar';
+import AddSubjectSheet from '@/src/components/AddSubjectSheet';
 import { colors, radius, shadow, spacing } from '@/src/theme';
-
-const FOCUS = [
-  {
-    id: 1,
-    tag: 'PHYSICS',
-    title: 'Infinite Potential Well',
-    minutes: 25,
-    accent: colors.orange,
-    blobA: colors.orangeSoft,
-    blobB: colors.yellowSoft,
-    icon: 'box' as const,
-  },
-  {
-    id: 2,
-    tag: 'MATHS',
-    title: 'Calculus of Curves',
-    minutes: 30,
-    accent: colors.brand,
-    blobA: colors.brandSoft,
-    blobB: colors.yellowSoft,
-    icon: 'trending-up' as const,
-  },
-  {
-    id: 3,
-    tag: 'CHEMISTRY',
-    title: 'Molecular Bonding',
-    minutes: 20,
-    accent: colors.yellow,
-    blobA: colors.yellowSoft,
-    blobB: colors.orangeSoft,
-    icon: 'droplet' as const,
-  },
-];
-
-const SESSIONS = [
-  { id: 1, title: 'Quantum Tunneling review', time: '4:30 PM', minutes: 20, icon: 'zap' as const },
-  { id: 2, title: 'Algebra practice set', time: '6:00 PM', minutes: 25, icon: 'edit-3' as const },
-  { id: 3, title: 'Reading — Chapter 4', time: '8:15 PM', minutes: 15, icon: 'book-open' as const },
-];
+import {
+  Subject,
+  RobotState,
+  getUserId,
+  listSubjects,
+  getRobotState,
+  twinVoice,
+} from '@/src/api/twin';
 
 export default function StudentHome() {
+  const router = useRouter();
+  const [userId, setUserId] = useState<string>('');
+  const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [robot, setRobot] = useState<RobotState | null>(null);
+  const [greeting, setGreeting] = useState<string | null>(null);
+  const [greetingLoading, setGreetingLoading] = useState(true);
+  const [showAdd, setShowAdd] = useState(false);
+
+  const load = useCallback(async (uid: string, refreshVoice = true) => {
+    const [subs, rob] = await Promise.all([listSubjects(uid), getRobotState(uid)]);
+    setSubjects(subs);
+    setRobot(rob);
+    if (refreshVoice) {
+      setGreetingLoading(true);
+      try {
+        const msg = await twinVoice('greeting', {
+          streak_days: rob.streak_days,
+          stage: rob.stage,
+          subjects_count: subs.length,
+          xp: rob.xp,
+        }, 'warm', 2);
+        setGreeting(msg);
+      } catch {
+        setGreeting("Hey, welcome back. Let's build a calm streak today.");
+      } finally {
+        setGreetingLoading(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    (async () => {
+      const uid = await getUserId();
+      setUserId(uid);
+      await load(uid);
+    })();
+  }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (userId) load(userId, false);
+    }, [userId, load]),
+  );
+
+  const mood = robot ? (robot.streak_days >= 3 ? 'happy' : robot.streak_days === 0 ? 'sleepy' : 'idle') : 'idle';
+
   return (
     <ScreenShell
-      greeting="Good morning"
-      title="Ready to learn, Alex?"
-      subtitle="Your twin has picked 3 gentle focus blocks."
+      greeting={robot ? `${robot.streak_days}-day streak` : ''}
+      title="Ready to learn?"
+      subtitle="Pick a subject or add a new one to begin."
       right={
-        <View style={styles.avatar} testID="student-avatar">
-          <Text style={styles.avatarText}>A</Text>
-        </View>
+        <Pressable onPress={() => setShowAdd(true)} style={styles.addBtn} hitSlop={8} testID="add-subject-btn">
+          <Feather name="plus" size={18} color="#FFF" />
+        </Pressable>
       }
       testID="student-home"
     >
-      {/* Hero card with mascot */}
+      {/* Robot hero */}
       <PressableCard style={styles.hero}>
         <View style={styles.heroBlob} pointerEvents="none">
-          <BlobBackground colorA={colors.brandSoft} colorB={colors.yellowSoft} width={220} height={200} />
+          <BlobBackground colorA={colors.brandSoft} colorB={colors.yellowSoft} width={260} height={220} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.heroEyebrow}>TODAY&apos;S TWIN INSIGHT</Text>
-          <Text style={styles.heroTitle}>Small steps.{'\n'}Big flow.</Text>
-          <Text style={styles.heroDesc}>You focus best between 4–6 PM. Let&apos;s try Physics first.</Text>
-          <View style={styles.heroChipRow}>
-            <View style={styles.heroChip}>
-              <Feather name="clock" size={12} color={colors.onSurface} />
-              <Text style={styles.heroChipText}>25 min</Text>
-            </View>
-            <View style={styles.heroChip}>
-              <Feather name="zap" size={12} color={colors.onSurface} />
-              <Text style={styles.heroChipText}>4-day streak</Text>
-            </View>
-          </View>
+        <View style={styles.robotWrap} testID="home-robot">
+          <Robot3D mood={mood as any} stage={(robot?.stage ?? 1) as 1|2|3|4|5} size={190} />
         </View>
-        <View style={styles.heroMascot}>
-          <RobotMascot size={96} />
-        </View>
+        <VoiceBubble message={greeting} loading={greetingLoading} />
+        {robot ? (
+          <EvolutionBar
+            stage={robot.stage}
+            stageProgress={robot.stage_progress}
+            xp={robot.xp}
+            nextStageXp={robot.next_stage_xp}
+            style={{ marginTop: spacing.md }}
+          />
+        ) : null}
       </PressableCard>
 
-      {/* Focus */}
+      {/* Subjects */}
       <View style={styles.sectionRow}>
-        <Text style={styles.sectionTitle}>Today&apos;s Focus</Text>
-        <Pressable hitSlop={8}><Text style={styles.sectionAction}>See all</Text></Pressable>
-      </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.focusScroll}
-      >
-        {FOCUS.map((f) => (
-          <PressableCard key={f.id} style={styles.focusCard} testID={`focus-card-${f.id}`}>
-            <View style={styles.focusBlob} pointerEvents="none">
-              <BlobBackground colorA={f.blobA} colorB={f.blobB} width={150} height={130} variant="b" />
-            </View>
-            <View style={[styles.focusIcon, { backgroundColor: f.accent }]}>
-              <Feather name={f.icon} size={18} color="#FFF" />
-            </View>
-            <Text style={styles.focusTag}>{f.tag}</Text>
-            <Text style={styles.focusTitle} numberOfLines={2}>{f.title}</Text>
-            <View style={styles.focusMeta}>
-              <Feather name="clock" size={12} color={colors.onSurfaceMuted} />
-              <Text style={styles.focusMetaText}>{f.minutes} min</Text>
-            </View>
-          </PressableCard>
-        ))}
-      </ScrollView>
-
-      {/* Stats */}
-      <View style={styles.statsRow}>
-        {[
-          { label: 'Chapters', value: '3', icon: 'book' as const },
-          { label: 'Subtopics', value: '12', icon: 'star' as const },
-          { label: 'Interactive', value: '100%', icon: 'zap' as const },
-        ].map((s) => (
-          <View key={s.label} style={styles.statCard}>
-            <Feather name={s.icon} size={16} color={colors.brandDeep} />
-            <Text style={styles.statValue}>{s.value}</Text>
-            <Text style={styles.statLabel}>{s.label}</Text>
-          </View>
-        ))}
+        <Text style={styles.section}>Subjects</Text>
+        <Pressable onPress={() => setShowAdd(true)} hitSlop={8} testID="add-subject-link">
+          <Text style={styles.sectionAction}>+ Add</Text>
+        </Pressable>
       </View>
 
-      {/* Upcoming */}
-      <View style={styles.sectionRow}>
-        <Text style={styles.sectionTitle}>Upcoming Sessions</Text>
-      </View>
-      <View style={{ gap: spacing.sm }}>
-        {SESSIONS.map((s) => (
-          <PressableCard key={s.id} style={styles.sessionCard} testID={`session-${s.id}`}>
-            <View style={styles.sessionIcon}>
-              <Feather name={s.icon} size={16} color={colors.brandDeep} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sessionTitle}>{s.title}</Text>
-              <Text style={styles.sessionMeta}>{s.time} • {s.minutes} min</Text>
-            </View>
-            <View style={styles.sessionCta}>
-              <Feather name="arrow-right" size={16} color={colors.onSurface} />
-            </View>
-          </PressableCard>
-        ))}
-      </View>
+      {subjects.length === 0 ? (
+        <PressableCard style={styles.empty} testID="empty-subjects" onPress={() => setShowAdd(true)}>
+          <View style={styles.emptyIcon}><Feather name="book-open" size={20} color="#FFF" /></View>
+          <Text style={styles.emptyTitle}>No subjects yet</Text>
+          <Text style={styles.emptyDesc}>Add your first subject — the Twin will start learning your rhythm from your very first session.</Text>
+        </PressableCard>
+      ) : (
+        <View style={{ gap: spacing.md }}>
+          {subjects.map((s) => (
+            <PressableCard
+              key={s.id}
+              style={styles.subjectCard}
+              testID={`subject-${s.id}`}
+              onPress={() => router.push(`/subject/${s.id}` as any)}
+            >
+              <View style={styles.subjectBlob} pointerEvents="none">
+                <BlobBackground colorA={s.color + '33'} colorB={colors.yellowSoft} width={160} height={140} variant="b" />
+              </View>
+              <View style={[styles.subjectIcon, { backgroundColor: s.color }]}>
+                <Feather name={s.icon as any} size={20} color="#FFF" />
+              </View>
+              <Text style={styles.subjectName}>{s.name}</Text>
+              <Text style={styles.subjectMeta}>
+                {(s.profile?.sessions_count ?? 0) === 0
+                  ? 'Ready for your first session'
+                  : `${s.profile?.sessions_count} session${(s.profile?.sessions_count ?? 0) === 1 ? '' : 's'} · ${Math.round((s.profile?.goal_completion_rate ?? 0) * 100)}% goals hit`}
+              </Text>
+              <View style={styles.startBtn}>
+                <Text style={styles.startBtnText}>Start session</Text>
+                <Feather name="arrow-right" size={14} color={colors.onSurface} />
+              </View>
+            </PressableCard>
+          ))}
+        </View>
+      )}
+
+      <AddSubjectSheet
+        visible={showAdd}
+        onClose={() => setShowAdd(false)}
+        onCreated={async () => { setShowAdd(false); if (userId) await load(userId, false); }}
+        userId={userId}
+      />
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  avatar: {
-    width: 42,
-    height: 42,
-    borderRadius: 999,
+  addBtn: {
+    width: 42, height: 42, borderRadius: 999,
     backgroundColor: colors.brand,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
+    alignItems: 'center', justifyContent: 'center',
     ...shadow.card,
   },
-  avatarText: { color: '#FFF', fontWeight: '800' },
-
   hero: {
-    flexDirection: 'row',
     padding: spacing.lg,
-    minHeight: 180,
+    borderWidth: 1, borderColor: colors.border,
     overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
     marginBottom: spacing.lg,
+    alignItems: 'stretch',
   },
-  heroBlob: { position: 'absolute', top: -20, right: -20 },
-  heroEyebrow: { fontSize: 10, fontWeight: '800', letterSpacing: 1.5, color: colors.brandDeep },
-  heroTitle: { marginTop: 6, fontSize: 22, fontWeight: '800', color: colors.onSurface, lineHeight: 28 },
-  heroDesc: { marginTop: 6, fontSize: 13, lineHeight: 18, color: colors.onSurfaceMuted, maxWidth: '70%' },
-  heroChipRow: { flexDirection: 'row', gap: 8, marginTop: spacing.md },
-  heroChip: {
+  heroBlob: { position: 'absolute', top: -20, right: -30 },
+  robotWrap: { alignItems: 'center', marginBottom: spacing.md },
+  sectionRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing.md, marginTop: spacing.md },
+  section: { fontSize: 17, fontWeight: '800', color: colors.onSurface },
+  sectionAction: { color: colors.brandDeep, fontWeight: '700', fontSize: 13 },
+  subjectCard: {
+    padding: spacing.lg, borderWidth: 1, borderColor: colors.border, overflow: 'hidden',
+  },
+  subjectBlob: { position: 'absolute', top: -10, right: -20 },
+  subjectIcon: {
+    width: 44, height: 44, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    marginBottom: spacing.sm, ...shadow.card,
+  },
+  subjectName: { fontSize: 18, fontWeight: '800', color: colors.onSurface },
+  subjectMeta: { fontSize: 12, color: colors.onSurfaceMuted, marginTop: 2, fontWeight: '600' },
+  startBtn: {
+    marginTop: spacing.md,
+    alignSelf: 'flex-start',
     flexDirection: 'row', alignItems: 'center', gap: 6,
     backgroundColor: colors.surfaceTertiary,
-    paddingHorizontal: 10, paddingVertical: 6, borderRadius: radius.pill,
+    paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: radius.pill,
   },
-  heroChipText: { fontSize: 11, fontWeight: '700', color: colors.onSurface },
-  heroMascot: { position: 'absolute', right: 4, bottom: 4 },
-
-  sectionRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: spacing.md,
-    marginTop: spacing.md,
-  },
-  sectionTitle: { fontSize: 17, fontWeight: '800', color: colors.onSurface },
-  sectionAction: { fontSize: 13, color: colors.brandDeep, fontWeight: '700' },
-
-  focusScroll: { gap: spacing.md, paddingRight: spacing.lg },
-  focusCard: {
-    width: 190,
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-    minHeight: 160,
-  },
-  focusBlob: { position: 'absolute', top: -10, right: -15 },
-  focusIcon: {
-    width: 36, height: 36, borderRadius: 12,
-    alignItems: 'center', justifyContent: 'center',
-    marginBottom: spacing.sm,
-  },
-  focusTag: { fontSize: 10, letterSpacing: 1.2, fontWeight: '800', color: colors.onSurfaceMuted },
-  focusTitle: { marginTop: 4, fontSize: 15, fontWeight: '800', color: colors.onSurface, lineHeight: 20 },
-  focusMeta: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing.sm },
-  focusMetaText: { fontSize: 12, color: colors.onSurfaceMuted, fontWeight: '600' },
-
-  statsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.lg },
-  statCard: {
-    flex: 1,
-    padding: spacing.md,
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+  startBtnText: { fontSize: 12, fontWeight: '800', color: colors.onSurface },
+  empty: {
+    padding: spacing.lg,
+    borderWidth: 1, borderColor: colors.border,
     alignItems: 'flex-start',
-    gap: 2,
-    ...shadow.card,
   },
-  statValue: { fontSize: 18, fontWeight: '800', color: colors.onSurface, marginTop: 4 },
-  statLabel: { fontSize: 11, color: colors.onSurfaceMuted, fontWeight: '600' },
-
-  sessionCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: spacing.md,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: spacing.md,
-  },
-  sessionIcon: {
+  emptyIcon: {
     width: 40, height: 40, borderRadius: 12,
-    backgroundColor: colors.brandSoft,
-    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.brand,
+    alignItems: 'center', justifyContent: 'center', marginBottom: spacing.sm,
   },
-  sessionTitle: { fontSize: 14, fontWeight: '700', color: colors.onSurface },
-  sessionMeta: { fontSize: 12, color: colors.onSurfaceMuted, marginTop: 2 },
-  sessionCta: {
-    width: 32, height: 32, borderRadius: 999,
-    backgroundColor: colors.surfaceTertiary,
-    alignItems: 'center', justifyContent: 'center',
-  },
+  emptyTitle: { fontSize: 16, fontWeight: '800', color: colors.onSurface },
+  emptyDesc: { marginTop: 4, fontSize: 13, color: colors.onSurfaceMuted, lineHeight: 18 },
 });

@@ -1,83 +1,128 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 
 import ScreenShell from '@/src/components/ScreenShell';
 import PressableCard from '@/src/components/PressableCard';
+import Robot3D from '@/src/components/Robot3D';
+import VoiceBubble from '@/src/components/VoiceBubble';
+import EvolutionBar from '@/src/components/EvolutionBar';
+import BlobBackground from '@/src/components/BlobBackground';
 import { colors, radius, shadow, spacing } from '@/src/theme';
+import {
+  AnalyticsSummary, RobotState, analyticsSummary, getRobotState, getUserId, twinVoice,
+} from '@/src/api/twin';
 
-const WEEK = [
-  { d: 'M', v: 0.6 }, { d: 'T', v: 0.8 }, { d: 'W', v: 0.5 },
-  { d: 'T', v: 0.9 }, { d: 'F', v: 0.7 }, { d: 'S', v: 0.4 }, { d: 'S', v: 0.85 },
-];
+function shortDay(iso: string): string {
+  try {
+    const d = new Date(iso);
+    return ['S', 'M', 'T', 'W', 'T', 'F', 'S'][d.getDay()];
+  } catch { return '·'; }
+}
 
 export default function Analytics() {
+  const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
+  const [robot, setRobot] = useState<RobotState | null>(null);
+  const [voice, setVoice] = useState<string | null>(null);
+  const [voiceLoading, setVoiceLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const uid = await getUserId();
+    const [s, r] = await Promise.all([analyticsSummary(uid), getRobotState(uid)]);
+    setSummary(s);
+    setRobot(r);
+    setVoiceLoading(true);
+    try {
+      const msg = await twinVoice('analytics', {
+        total_minutes: s.total_minutes,
+        sessions_count: s.sessions_count,
+        completion_rate_percent: Math.round(s.completion_rate * 100),
+        streak_days: r.streak_days,
+        stage: r.stage,
+      }, 'warm', 2);
+      setVoice(msg);
+    } catch {
+      setVoice(null);
+    } finally {
+      setVoiceLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const maxSec = Math.max(1, ...(summary?.week ?? []).map((w) => w.seconds));
+  const mood = robot ? (robot.streak_days >= 3 ? 'happy' : 'idle') : 'idle';
+
   return (
-    <ScreenShell greeting="INSIGHTS" title="Your calm progress" subtitle="This week you learned 3h 40m across 4 subjects." testID="student-analytics">
-      <PressableCard style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Study minutes</Text>
-        <Text style={styles.chartMeta}>Past 7 days</Text>
-        <View style={styles.bars}>
-          {WEEK.map((w, i) => (
-            <View key={i} style={styles.barCol}>
-              <View style={styles.barTrack}>
-                <View style={[styles.barFill, { height: `${w.v * 100}%` }]} />
-              </View>
-              <Text style={styles.barLabel}>{w.d}</Text>
-            </View>
-          ))}
+    <ScreenShell greeting="INSIGHTS" title="Your calm progress" testID="student-analytics">
+      <PressableCard style={styles.hero}>
+        <View style={styles.heroBlob} pointerEvents="none">
+          <BlobBackground colorA={colors.brandSoft} colorB={colors.yellowSoft} width={220} height={190} />
         </View>
+        <View style={styles.heroRow}>
+          <Robot3D mood={mood as any} stage={(robot?.stage ?? 1) as 1|2|3|4|5} size={130} />
+          <View style={{ flex: 1, marginLeft: spacing.md }}>
+            <VoiceBubble message={voice} loading={voiceLoading} />
+          </View>
+        </View>
+        {robot ? (
+          <EvolutionBar
+            stage={robot.stage}
+            stageProgress={robot.stage_progress}
+            xp={robot.xp}
+            nextStageXp={robot.next_stage_xp}
+            style={{ marginTop: spacing.md }}
+          />
+        ) : null}
       </PressableCard>
 
       <View style={styles.statsRow}>
         {[
-          { l: 'Streak', v: '7 days', i: 'zap' as const, c: colors.orange },
-          { l: 'Focus', v: '92%', i: 'target' as const, c: colors.brand },
-          { l: 'Twin XP', v: '1,240', i: 'award' as const, c: colors.yellow },
+          { l: 'Minutes', v: `${summary?.total_minutes ?? 0}`, i: 'clock' as const, c: colors.brand },
+          { l: 'Sessions', v: `${summary?.sessions_count ?? 0}`, i: 'target' as const, c: colors.orange },
+          { l: 'Streak', v: `${robot?.streak_days ?? 0}d`, i: 'zap' as const, c: colors.yellow },
         ].map((s) => (
           <View key={s.l} style={styles.statCard}>
             <View style={[styles.statIcon, { backgroundColor: s.c }]}>
               <Feather name={s.i} size={14} color="#FFF" />
             </View>
-            <Text style={styles.statV}>{s.v}</Text>
-            <Text style={styles.statL}>{s.l}</Text>
+            <Text style={styles.statValue}>{s.v}</Text>
+            <Text style={styles.statLabel}>{s.l}</Text>
           </View>
         ))}
       </View>
 
-      <Text style={styles.section}>Weekly Highlights</Text>
-      <View style={{ gap: spacing.sm }}>
-        {[
-          { t: 'Best focus day: Thursday', d: '54 min continuous study', i: 'sun' as const },
-          { t: 'Mastered concept', d: 'Infinite Potential Well', i: 'check-circle' as const },
-          { t: 'Twin suggestion', d: 'Try 20 min sessions on Sundays', i: 'compass' as const },
-        ].map((h, i) => (
-          <PressableCard key={i} style={styles.hlCard}>
-            <View style={styles.hlIcon}><Feather name={h.i} size={14} color={colors.brandDeep} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.hlTitle}>{h.t}</Text>
-              <Text style={styles.hlDesc}>{h.d}</Text>
-            </View>
-          </PressableCard>
-        ))}
-      </View>
+      <PressableCard style={styles.chartCard}>
+        <Text style={styles.chartTitle}>Study minutes · 7 days</Text>
+        <View style={styles.bars}>
+          {(summary?.week ?? []).map((w, i) => {
+            const h = Math.max(4, (w.seconds / maxSec) * 100);
+            return (
+              <View key={i} style={styles.barCol}>
+                <View style={styles.barTrack}>
+                  <View style={[styles.barFill, { height: `${h}%` }]} />
+                </View>
+                <Text style={styles.barLabel}>{shortDay(w.date)}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </PressableCard>
     </ScreenShell>
   );
 }
 
 const styles = StyleSheet.create({
-  chartCard: {
+  hero: {
     padding: spacing.lg,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 1, borderColor: colors.border,
+    overflow: 'hidden',
+    marginBottom: spacing.md,
   },
-  chartTitle: { fontSize: 15, fontWeight: '800', color: colors.onSurface },
-  chartMeta: { fontSize: 11, color: colors.onSurfaceMuted, marginTop: 2, marginBottom: spacing.md },
-  bars: { flexDirection: 'row', height: 140, alignItems: 'flex-end', gap: 8, marginTop: spacing.sm },
-  barCol: { flex: 1, alignItems: 'center' },
-  barTrack: { flex: 1, width: 16, backgroundColor: colors.surfaceTertiary, borderRadius: radius.pill, justifyContent: 'flex-end', overflow: 'hidden' },
-  barFill: { width: '100%', backgroundColor: colors.brand, borderRadius: radius.pill },
-  barLabel: { marginTop: 6, fontSize: 11, color: colors.onSurfaceMuted, fontWeight: '600' },
+  heroBlob: { position: 'absolute', top: -30, right: -30 },
+  heroRow: { flexDirection: 'row', alignItems: 'center' },
   statsRow: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
   statCard: {
     flex: 1, padding: spacing.md,
@@ -87,15 +132,17 @@ const styles = StyleSheet.create({
     ...shadow.card,
   },
   statIcon: { width: 28, height: 28, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
-  statV: { fontSize: 16, fontWeight: '800', color: colors.onSurface, marginTop: spacing.sm },
-  statL: { fontSize: 11, color: colors.onSurfaceMuted, marginTop: 2, fontWeight: '600' },
-  section: { marginTop: spacing.lg, marginBottom: spacing.md, fontSize: 17, fontWeight: '800', color: colors.onSurface },
-  hlCard: {
-    flexDirection: 'row', alignItems: 'center', gap: spacing.md,
-    padding: spacing.md,
+  statValue: { fontSize: 18, fontWeight: '800', color: colors.onSurface, marginTop: spacing.sm },
+  statLabel: { fontSize: 11, color: colors.onSurfaceMuted, marginTop: 2, fontWeight: '600' },
+  chartCard: {
+    padding: spacing.lg,
     borderWidth: 1, borderColor: colors.border,
+    marginTop: spacing.md,
   },
-  hlIcon: { width: 36, height: 36, borderRadius: 12, backgroundColor: colors.brandSoft, alignItems: 'center', justifyContent: 'center' },
-  hlTitle: { fontSize: 14, fontWeight: '700', color: colors.onSurface },
-  hlDesc: { fontSize: 12, color: colors.onSurfaceMuted, marginTop: 2 },
+  chartTitle: { fontSize: 15, fontWeight: '800', color: colors.onSurface, marginBottom: spacing.md },
+  bars: { flexDirection: 'row', height: 140, alignItems: 'flex-end', gap: 8 },
+  barCol: { flex: 1, alignItems: 'center' },
+  barTrack: { flex: 1, width: 16, backgroundColor: colors.surfaceTertiary, borderRadius: radius.pill, justifyContent: 'flex-end', overflow: 'hidden' },
+  barFill: { width: '100%', backgroundColor: colors.brand, borderRadius: radius.pill },
+  barLabel: { marginTop: 6, fontSize: 11, color: colors.onSurfaceMuted, fontWeight: '600' },
 });

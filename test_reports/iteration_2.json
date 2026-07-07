@@ -1,0 +1,51 @@
+{
+  "summary": "Aroha Phase 1 (Independent Mode) — end-to-end backend + frontend regression. Backend: 16/16 pytest cases pass on the public preview URL. Verified GET /api/ health, POST/GET /api/subjects (subject created + empty twin profile seeded, no mongo _id leaking, profile attached in list), POST /api/sessions/predict (is_first_session=true and predicted_units == round(goal_units*0.8) baseline, second prediction flips to false after a session ends), POST /api/sessions (persists prediction_snapshot, 404 for unknown subject), POST /api/sessions/{id}/end (+6 XP when goal completed within planned time, running-mean profile update, robot state + comparison payload with predicted vs actual returned, double-end -> 400, unknown -> 404), GET /api/robot/state (stage/stage_progress/xp/next_stage_xp shape correct), POST /api/twin/voice (returns short natural-language string for both greeting and distraction contexts — LLM path via Emergent key succeeded), GET /api/analytics/summary (week array length 7, ordered by day). Frontend: full student journey exercised on 390x844 mobile viewport via Playwright. Splash → welcome → student login (mock alex@aroha.app / test1234) → /student/home renders 3D robot canvas + Claude greeting + evolution bar (Stage 1, 10/100 XP) + streak count + tab bar. Empty state -> add-subject-btn opens AddSubjectSheet, saving creates subject and reloads with card visible. Tapping a subject card navigates to /subject/{id} (Stack — no tab bar) with start-session-btn. Setup screen fills topic + goal, tapping any duration chip fires prediction (via onPressOut) and populates the prediction card with units / focus / drift / confidence AND a Claude twin-voice bubble that ONLY re-phrases the facts (verified: 'I predict you'll cover about 8 units in your planned 25 minutes'). start-now-btn creates the session and navigates to /session/live/{id}. Live screen renders 3D robot, MM:SS / MM:SS timer, +/- unit controls, distraction button (produces Claude-generated distraction help voice: 'I notice you usually get distracted around 18 minutes...'), break toggle. Finish + confirm-finish navigates to /session/end/{id} which renders comparison rows (Units 8 -> 2, Focus time 33 min -> 0 min, First drift min 18 -> min 0), energy delta (-2), evolution bar with updated XP (10 -> 8, Stage 1 8/100 XP) and a Claude session_end voice bubble. end-home-btn returns to /student/home which now shows '1-day streak', 8/100 XP and '1 session · 0% goals hit' — full state loop closed. Deprecated packages / RN warnings detected: react-native-web 'shadow*' and 'pointerEvents' props deprecations (previously reported), plus new THREE.Clock deprecation warning coming from @react-three drei/three inside Robot3D — informational only, robot renders correctly. No red-screen errors, no failed API calls.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "session/setup", "issues": ["Prediction fires on the goal field's onBlur and on each duration chip's onPressOut. When user types the goal and immediately taps 'Start session' without blurring, the very first prediction request may not have run yet (start-session still works because startSession endpoint independently persists a fresh snapshot server-side, but the UI card would look empty). Consider debouncing predict on goal change so the prediction card is never blank once user has entered a goal."]},
+      {"screen": "student/home", "issues": ["Expo Router keeps prior /student/home instance mounted after returning from Stack routes — page.locator('[data-testid=student-home]') resolves to 2 elements. Not a bug, but selector authors should always use .first."]}
+    ],
+    "react_native_issues": [
+      {"component": "Robot3D (three.js)", "issue": "Console warning: 'THREE.Clock: This module has been deprecated. Please use THREE.Timer instead.' Emitted on every screen that mounts Robot3D. Comes from @react-three/fiber's internal Clock usage; upgrade @react-three/fiber (or three) once a version with THREE.Timer migration lands. Reference: /app/frontend/src/components/Robot3D.tsx."},
+      {"component": "shadow* style props (theme.ts consumers)", "issue": "React Native Web deprecation still present from iteration 1: '\"shadow*\" style props are deprecated. Use \"boxShadow\"'. Reference: /app/frontend/src/theme.ts and every card/tab-bar component consuming theme.shadow.*."},
+      {"component": "props.pointerEvents", "issue": "React Native Web deprecation still present from iteration 1: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: /app/frontend/app/welcome.tsx and /app/frontend/app/session/setup/[subjectId].tsx:150 (BlobBackground wrappers use pointerEvents=\"none\" as a prop)."}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_aroha_backend.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/iteration_2.json"
+  ],
+  "action_items": [
+    "(Optional) Migrate remaining `pointerEvents=\"none\"` props to `style={{ pointerEvents: 'none' }}` in welcome.tsx and session/setup/[subjectId].tsx (BlobBackground wrapper on line ~150) to silence RN Web deprecation.",
+    "(Optional) Migrate `shadow*` style keys in /app/frontend/src/theme.ts to the modern `boxShadow` string.",
+    "(Optional) Track @react-three/fiber / three release notes and upgrade once THREE.Timer replaces THREE.Clock to eliminate the recurring deprecation warning from Robot3D.",
+    "(Nice-to-have UX) Auto-run prediction on goal debounce (e.g. 400ms after last keystroke) in session/setup so the prediction card is populated without needing the field to lose focus."
+  ],
+  "critical_code_review_comments": [
+    "server.py:531 predict_session and create_session both compute the same prediction — that's intentional for the snapshot, but note that if the profile changes between predict and start, the two payloads diverge. Consider accepting the client's most-recent prediction id (or hash) to guarantee identical UX vs stored snapshot.",
+    "server.py:359 compute_energy_delta uses `session_summary.get('goal_units_target') or 0` which makes the -4 branch unreachable when the goal has no numeric units (goal_units_target None -> 0 -> ended_early condition compares units_done < 0.5*0 which is False). Behaviourally correct today but worth an explicit branch for clarity.",
+    "server.py:717 uses `@app.on_event('shutdown')` — deprecated in FastAPI 0.109+. Prefer `lifespan` context manager. Not blocking.",
+    "server.py:509 list_subjects calls get_or_create_profile for each subject sequentially inside the response loop — fine at small N but O(N) DB round trips per list call. Consider a single find by user_id then join in-memory.",
+    "src/api/twin.ts / session setup: prediction fires only on onBlur/onPressOut. Debouncing on change would make UX feel more alive.",
+    "src/components/Robot3D.tsx: verify that when the tab is backgrounded the WebGL context is properly disposed on unmount to avoid GPU stalls (multiple 'GPU stall due to ReadPixels' warnings were observed during the test run)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/__init__.py (new)",
+    "/app/backend/tests/conftest.py (new)",
+    "/app/backend/tests/test_aroha_backend.py (new)"
+  ],
+  "success_rate": {"backend": "16/16 (100%)", "frontend": "Full happy-path flow (welcome → login → home → subjects → setup → live → end → home) passes; every listed testID reachable and integrated with backend."},
+  "seed_data_creation": "Each pytest run creates one fresh user_id 'TEST_user_<uuid>' with one subject 'TEST_Math' and one completed session. The UI test creates a subject named 'TESTUI<epoch>' under the device-derived user_id in AsyncStorage. Neither collides with real data. No teardown was performed (mongo test_database is expected to be ephemeral in this env); if cleanup is desired, the created docs are all prefixed with TEST_ / TESTUI or belong to a per-run uuid user_id.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Base URL: https://twin-learning-hub.preview.emergentagent.com. Backend env key used by frontend is EXPO_PUBLIC_BACKEND_URL (NOT EXPO_BACKEND_URL). AuthForm testIDs are `${role}-email-input` / `${role}-password-input` / `${role}-${mode}-submit` (mode is only in submit). Session-setup duration chips are 15/25/45/60/90/120 (no 20/30). Prediction is triggered by Goal onBlur or by tapping any duration chip (onPressOut) — not automatically as user types. AsyncStorage keeps the user_id and there is a mounted duplicate of /student/home after returning from Stack routes, so always use page.locator(...).first for waits. Twin voice endpoint returns real Claude output when EMERGENT_LLM_KEY is set (verified) with deterministic fallback otherwise. Robot3D emits a THREE.Clock deprecation warning and occasional GPU-stall messages on web — not blocking. Full pytest file at /app/backend/tests/test_aroha_backend.py — safe to rerun.",
+  "rca_of_issue": "No blocking issue. All originally-listed features work end-to-end. Only cosmetic warnings (shadow*, pointerEvents, THREE.Clock) surface — these are RN Web / three.js version-driven deprecations, not functional bugs."
+}

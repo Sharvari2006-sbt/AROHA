@@ -10,8 +10,9 @@ import VoiceBubble from '@/src/components/VoiceBubble';
 import BlobBackground from '@/src/components/BlobBackground';
 import { colors, radius, shadow, spacing } from '@/src/theme';
 import {
-  endSession, getUserId, listSessions, twinVoice, SessionDoc, SessionEvent,
+  endSession, getRobotState, getSession, getUserId, twinVoice, SessionDoc, SessionEvent, RobotState,
 } from '@/src/api/twin';
+import { beginFocusShieldSession, endFocusShieldSession } from '@/src/native/focus-shield';
 
 function fmt(sec: number): string {
   const m = Math.floor(sec / 60).toString().padStart(2, '0');
@@ -23,6 +24,7 @@ export default function LiveSession() {
   const router = useRouter();
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const [session, setSession] = useState<SessionDoc | null>(null);
+  const [robot, setRobot] = useState<RobotState | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [active, setActive] = useState(0); // seconds actually studied (excludes breaks)
   const [onBreak, setOnBreak] = useState(false);
@@ -37,19 +39,32 @@ export default function LiveSession() {
   const activeRef = useRef(active);
   const onBreakRef = useRef(onBreak);
   const elapsedRef = useRef(elapsed);
+  const appActiveRef = useRef(true);
+  const backgroundStartRef = useRef<number | null>(null);
+  const driftTriggeredRef = useRef(false);
+  const startedAtRef = useRef(Date.now());
+  const breakStartedAtRef = useRef<number | null>(null);
+  const inactivityTriggeredRef = useRef(false);
+  const currentElapsed = useCallback(() => Math.max(0, Math.floor((Date.now() - startedAtRef.current) / 1000)), []);
 
   useEffect(() => { activeRef.current = active; }, [active]);
   useEffect(() => { onBreakRef.current = onBreak; }, [onBreak]);
   useEffect(() => { elapsedRef.current = elapsed; }, [elapsed]);
 
+  useEffect(() => {
+    beginFocusShieldSession().catch(() => false);
+    return () => endFocusShieldSession();
+  }, []);
+
   // Load session doc
   useEffect(() => {
     (async () => {
       const uid = await getUserId();
-      const rows = await listSessions(uid);
-      const found = rows.find((r) => r.id === sessionId) ?? null;
+      const [found, robotState] = await Promise.all([getSession(uid, sessionId as string), getRobotState(uid)]);
+      setRobot(robotState);
       setSession(found);
       if (found) {
+        startedAtRef.current = new Date(found.started_at).getTime();
         const p = found.prediction_snapshot;
         setVoiceLoading(true);
         try {
@@ -58,10 +73,14 @@ export default function LiveSession() {
             {
               subject_name: found.subject_name,
               predicted_units: p.predicted_units,
-              predicted_distraction_point_minutes: Math.round(p.predicted_distraction_point_seconds / 60),
+              predicted_distraction_point_minutes: p.predicted_distraction_point_seconds != null ? Math.round(p.predicted_distraction_point_seconds / 60) : null,
+              predicted_focus_minutes: p.predicted_focus_seconds != null ? Math.round(p.predicted_focus_seconds / 60) : null,
+              predicted_completion_percent: Math.round(p.predicted_completion_probability * 100),
               planned_minutes: found.planned_duration_minutes,
               confidence: p.confidence,
               is_first_session: p.is_first_session,
+              has_enough_data: p.has_enough_data,
+              previous_subject_sessions: found.subject_profile_snapshot?.sessions_count ?? 0,
             },
             'playful',
             2,
@@ -79,34 +98,48 @@ export default function LiveSession() {
   // Timer
   useEffect(() => {
     const id = setInterval(() => {
-      setElapsed((e) => e + 1);
-      if (!onBreakRef.current) setActive((a) => a + 1);
+      setElapsed(currentElapsed());
+      if (!onBreakRef.current && appActiveRef.current) setActive((a) => a + 1);
     }, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [currentElapsed]);
 
   // Auto distraction detection via AppState
   useEffect(() => {
-    let bgStart: number | null = null;
     const sub = AppState.addEventListener('change', (state: AppStateStatus) => {
-      const at = elapsedRef.current;
-      if (state !== 'active') {
-        bgStart = at;
+      const at = currentElapsed();
+      if (state !== 'active' && appActiveRef.current) {
+        appActiveRef.current = false;
+        backgroundStartRef.current = at;
         setEvents((ev) => [...ev, { kind: 'background', at_seconds: at }]);
-      } else if (bgStart != null) {
-        setEvents((ev) => [...ev, { kind: 'foreground', at_seconds: at, payload: { duration: at - (bgStart as number) } }]);
-        bgStart = null;
+      } else if (state === 'active' && !appActiveRef.current) {
+        const started = backgroundStartRef.current;
+        appActiveRef.current = true;
+        backgroundStartRef.current = null;
+        setEvents((ev) => [...ev, { kind: 'foreground', at_seconds: at, payload: { duration: Math.max(0, at - (started ?? at)) } }]);
+        setMood('worried');
+        setTimeout(() => setMood('idle'), 4000);
       }
     });
     return () => sub.remove();
-  }, []);
+  }, [currentElapsed]);
+
+  useEffect(() => {
+    if (!onBreak || breakStartedAtRef.current == null || inactivityTriggeredRef.current) return;
+    if (elapsed - breakStartedAtRef.current >= 120) {
+      inactivityTriggeredRef.current = true;
+      setMood('worried');
+      setVoice(`This break has reached ${Math.round((elapsed - breakStartedAtRef.current) / 60)} minutes. Resume when you're ready, and I'll keep the timing honest.`);
+    }
+  }, [elapsed, onBreak]);
 
   // Trigger predicted-drift moment: when we cross predicted distraction point, offer help proactively
   useEffect(() => {
     if (!session) return;
     const p = session.prediction_snapshot;
     const drift = p?.predicted_distraction_point_seconds ?? 0;
-    if (drift && elapsed === drift) {
+    if (drift && elapsed >= drift && !driftTriggeredRef.current) {
+      driftTriggeredRef.current = true;
       setMood('worried');
       // gentle nudge without demanding action
       (async () => {
@@ -137,11 +170,16 @@ export default function LiveSession() {
     setVoiceLoading(true);
     try {
       const p = session.prediction_snapshot;
+      const history = session.subject_profile_snapshot;
       const msg = await twinVoice('distraction_help', {
         subject_name: session.subject_name,
-        typical_distraction_minute: p.predicted_distraction_point_seconds ? Math.round(p.predicted_distraction_point_seconds / 60) : null,
+        typical_distraction_minute: p.predicted_distraction_point_seconds != null ? Math.round(p.predicted_distraction_point_seconds / 60) : null,
         elapsed_minutes: Math.round(elapsedRef.current / 60),
         goal: session.goal,
+        previous_subject_sessions: history?.sessions_count ?? 0,
+        average_focus_minutes: history?.avg_focus_seconds ? Math.round(history.avg_focus_seconds / 60) : null,
+        usual_recovery_minutes: history?.avg_post_distraction_focus_seconds ? Math.max(1, Math.round(history.avg_post_distraction_focus_seconds / 60)) : null,
+        post_distraction_goal_completion_percent: history?.distraction_sessions_count ? Math.round((history.post_distraction_completion_rate ?? 0) * 100) : null,
       }, 'warm', 2);
       setVoice(msg);
     } finally {
@@ -155,16 +193,20 @@ export default function LiveSession() {
     if (onBreak) {
       setEvents((ev) => [...ev, { kind: 'break_end', at_seconds: at }]);
       setOnBreak(false);
+      breakStartedAtRef.current = null;
+      inactivityTriggeredRef.current = false;
       setMood('idle');
     } else {
       setEvents((ev) => [...ev, { kind: 'break_start', at_seconds: at }]);
       setOnBreak(true);
+      breakStartedAtRef.current = at;
+      inactivityTriggeredRef.current = false;
       setMood('sleepy');
     }
   };
 
-  const addUnit = () => setUnits((u) => u + 1);
-  const removeUnit = () => setUnits((u) => Math.max(0, u - 1));
+  const addUnit = () => setUnits((u) => { const next = u + 1; setEvents((ev) => [...ev, { kind: 'unit_progress', at_seconds: elapsedRef.current, payload: { units: next } }]); return next; });
+  const removeUnit = () => setUnits((u) => { const next = Math.max(0, u - 1); setEvents((ev) => [...ev, { kind: 'unit_progress', at_seconds: elapsedRef.current, payload: { units: next } }]); return next; });
 
   const confirmEnd = () => setShowEnd(true);
 
@@ -176,6 +218,7 @@ export default function LiveSession() {
         ended_early: endedEarly,
         units_done: session.goal_units_target ? units : null,
         active_seconds: activeRef.current,
+        elapsed_seconds: elapsedRef.current,
         events,
       });
       // Pass comparison payload via router params (JSON encoded)
@@ -194,7 +237,7 @@ export default function LiveSession() {
   const planned = session.planned_duration_seconds;
   const progress = Math.min(1, active / Math.max(planned, 1));
   const targetUnits = session.goal_units_target;
-  const stage = 1; // robot stage read from state; simplified here
+  const stage = (robot?.stage ?? 1) as 1 | 2 | 3 | 4 | 5;
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']} testID={`live-session-${session.id}`}>
@@ -285,7 +328,7 @@ export default function LiveSession() {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Finish this session?</Text>
-            <Text style={styles.modalDesc}>Your Twin will compare your performance to its prediction and update your profile.</Text>
+            <Text style={styles.modalDesc}>Reo will compare your performance with the Digital Twin prediction and update this subject profile.</Text>
             <View style={{ gap: spacing.sm, marginTop: spacing.md }}>
               <PrimaryButton
                 label={ending ? 'Wrapping up…' : 'Finish now'}

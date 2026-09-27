@@ -86,3 +86,14 @@ android-sdk/
 credentials.json
 *.key
 .credentials
+
+# Local runtime data and generated exports
+/backend/output/
+/backend/uploads/
+/frontend/dist-*/
+
+# Android local settings and build artifacts
+/frontend/android/local.properties
+/frontend/android/.gradle/
+/frontend/android/**/build/
+/frontend/android/app/debug.keystore

@@ -28,14 +28,20 @@ export default function StudentHome() {
   const [greeting, setGreeting] = useState<string | null>(null);
   const [greetingLoading, setGreetingLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
+  const [waving, setWaving] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setWaving(false), 3500);
+    return () => clearTimeout(timer);
+  }, []);
 
   const load = useCallback(async (uid: string, refreshVoice = true) => {
-    const [subs, rob] = await Promise.all([listSubjects(uid), getRobotState(uid)]);
-    setSubjects(subs);
-    setRobot(rob);
-    if (refreshVoice) {
-      setGreetingLoading(true);
-      try {
+    if (refreshVoice) setGreetingLoading(true);
+    try {
+      const [subs, rob] = await Promise.all([listSubjects(uid), getRobotState(uid)]);
+      setSubjects(subs);
+      setRobot(rob);
+      if (refreshVoice) {
         const msg = await twinVoice('greeting', {
           streak_days: rob.streak_days,
           stage: rob.stage,
@@ -43,11 +49,11 @@ export default function StudentHome() {
           xp: rob.xp,
         }, 'warm', 2);
         setGreeting(msg);
-      } catch {
-        setGreeting("Hey, welcome back. Let's build a calm streak today.");
-      } finally {
-        setGreetingLoading(false);
       }
+    } catch {
+      if (refreshVoice) setGreeting("Hi, I'm Reo. Let's build a calm streak today.");
+    } finally {
+      if (refreshVoice) setGreetingLoading(false);
     }
   }, []);
 
@@ -55,7 +61,7 @@ export default function StudentHome() {
     (async () => {
       const uid = await getUserId();
       setUserId(uid);
-      await load(uid);
+      await load(uid).catch(() => undefined);
     })();
   }, [load]);
 
@@ -65,7 +71,9 @@ export default function StudentHome() {
     }, [userId, load]),
   );
 
-  const mood = robot ? (robot.streak_days >= 3 ? 'happy' : robot.streak_days === 0 ? 'sleepy' : 'idle') : 'idle';
+  const mood = waving ? 'wave' : robot
+    ? ((robot.inactivity_days ?? 0) >= 3 ? 'worried' : (robot.daily_xp ?? 0) >= 7 ? 'happy' : (robot.daily_xp ?? 0) === 0 ? 'sleepy' : 'idle')
+    : 'idle';
 
   return (
     <ScreenShell
@@ -80,7 +88,7 @@ export default function StudentHome() {
       testID="student-home"
     >
       {/* Robot hero */}
-      <PressableCard style={styles.hero}>
+      <PressableCard style={styles.hero} onPress={() => router.push('/student/analytics' as any)}>
         <View style={styles.heroBlob} pointerEvents="none">
           <BlobBackground colorA={colors.brandSoft} colorB={colors.yellowSoft} width={260} height={220} />
         </View>
@@ -111,7 +119,7 @@ export default function StudentHome() {
         <PressableCard style={styles.empty} testID="empty-subjects" onPress={() => setShowAdd(true)}>
           <View style={styles.emptyIcon}><Feather name="book-open" size={20} color="#FFF" /></View>
           <Text style={styles.emptyTitle}>No subjects yet</Text>
-          <Text style={styles.emptyDesc}>Add your first subject — the Twin will start learning your rhythm from your very first session.</Text>
+          <Text style={styles.emptyDesc}>Add your first subject — Reo will start learning your rhythm from your very first session.</Text>
         </PressableCard>
       ) : (
         <View style={{ gap: spacing.md }}>

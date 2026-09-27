@@ -12,6 +12,7 @@ export default function ParentLayout() {
       <Tabs.Screen name="students" options={{ title: 'Students' }} />
       <Tabs.Screen name="analytics" options={{ title: 'Analytics' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      <Tabs.Screen name="student/[id]" options={{ href: null }} />
     </Tabs>
   );
 }

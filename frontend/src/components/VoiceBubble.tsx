@@ -27,10 +27,13 @@ export default function VoiceBubble({ message, loading, compact }: Props) {
       {loading ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <ActivityIndicator size="small" color={colors.brandDeep} />
-          <Text style={styles.loading}>Twin thinking…</Text>
+          <Text style={styles.loading}>Reo is thinking…</Text>
         </View>
       ) : (
-        <Text style={styles.text}>{message}</Text>
+        <View>
+          <Text style={styles.name}>REO</Text>
+          <Text style={styles.text}>{message}</Text>
+        </View>
       )}
     </Animated.View>
   );
@@ -60,5 +63,6 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
   },
   text: { color: colors.onSurface, fontSize: 14, lineHeight: 20, fontWeight: '600' },
+  name: { marginBottom: 4, color: colors.brandDeep, fontSize: 9, fontWeight: '800', letterSpacing: 1.2 },
   loading: { color: colors.onSurfaceMuted, fontSize: 13, fontWeight: '600' },
 });

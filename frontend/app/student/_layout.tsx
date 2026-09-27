@@ -12,6 +12,7 @@ export default function StudentLayout() {
       <Tabs.Screen name="study" options={{ title: 'Study' }} />
       <Tabs.Screen name="analytics" options={{ title: 'Analytics' }} />
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      <Tabs.Screen name="tool/[mode]" options={{ href: null }} />
     </Tabs>
   );
 }

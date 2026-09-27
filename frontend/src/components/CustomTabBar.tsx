@@ -20,14 +20,24 @@ const ICONS: Record<string, IconName> = {
   quiz: 'help-circle',
 };
 
+const INTERNAL_ROUTES = new Set(['assignment/[id]', 'assessment/[id]', 'learn/[mode]', 'quiz/[id]', 'revision/index', 'revision/[id]', 'student/[id]', 'tool/[mode]']);
+
 export default function CustomTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
+  const activeRoute = state.routes[state.index]?.name;
+  if (activeRoute && INTERNAL_ROUTES.has(activeRoute)) {
+    return null;
+  }
   return (
     <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, 10) }]}>
       <View style={styles.bar}>
         {state.routes.map((route, index) => {
           const focused = state.index === index;
           const { options } = descriptors[route.key];
+          // Expo Router keeps href:null screens in navigation state. A custom
+          // tab bar must explicitly omit them or dynamic internal routes such
+          // as assignment/[id] become clickable tabs with no real id.
+          if (INTERNAL_ROUTES.has(route.name) || (options as typeof options & { href?: string | null }).href === null) return null;
           const label = (options.title ?? route.name) as string;
           const icon = ICONS[route.name] || 'circle';
 

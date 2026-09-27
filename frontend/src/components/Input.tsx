@@ -18,7 +18,7 @@ export default function Input({ label, icon, isPassword, testID, style, ...rest 
   return (
     <View style={styles.wrap}>
       <Text style={styles.label}>{label}</Text>
-      <View style={[styles.field, focused && styles.fieldFocused]}>
+      <View style={[styles.field, rest.multiline && styles.fieldMultiline, focused && styles.fieldFocused]}>
         {icon ? <Feather name={icon} size={18} color={colors.onSurfaceMuted} style={{ marginRight: spacing.sm }} /> : null}
         <TextInput
           testID={testID}
@@ -62,6 +62,12 @@ const styles = StyleSheet.create({
   fieldFocused: {
     borderColor: colors.brand,
     backgroundColor: '#FBF7F1',
+  },
+  fieldMultiline: {
+    height: 126,
+    alignItems: 'flex-start',
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
   },
   input: {
     flex: 1,

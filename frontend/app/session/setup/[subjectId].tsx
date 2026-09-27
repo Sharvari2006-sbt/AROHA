@@ -16,8 +16,6 @@ import {
   Prediction, TwinProfile, Subject, getRobotState, RobotState,
 } from '@/src/api/twin';
 
-const DURATIONS = [15, 25, 45, 60, 90, 120];
-
 export default function SessionSetup() {
   const router = useRouter();
   const { subjectId } = useLocalSearchParams<{ subjectId: string }>();
@@ -26,7 +24,7 @@ export default function SessionSetup() {
   const [profile, setProfile] = useState<TwinProfile | null>(null);
   const [topic, setTopic] = useState('');
   const [goal, setGoal] = useState('');
-  const [minutes, setMinutes] = useState(45);
+  const [minutesText, setMinutesText] = useState('45');
   const [prediction, setPrediction] = useState<Prediction | null>(null);
   const [predVoice, setPredVoice] = useState<string | null>(null);
   const [predLoading, setPredLoading] = useState(false);
@@ -45,7 +43,9 @@ export default function SessionSetup() {
     })();
   }, [subjectId]);
 
-  const canPredict = goal.trim().length > 1 && minutes > 0;
+  const minutes = Number.parseInt(minutesText, 10);
+  const durationValid = Number.isFinite(minutes) && minutes >= 1 && minutes <= 600;
+  const canPredict = goal.trim().length > 1 && durationValid;
 
   const runPrediction = useCallback(async () => {
     if (!canPredict || !userId || !subject) return;
@@ -59,10 +59,14 @@ export default function SessionSetup() {
         {
           subject_name: subject.name,
           predicted_units: pred.predicted_units,
-          predicted_distraction_point_minutes: Math.round(pred.predicted_distraction_point_seconds / 60),
+          predicted_distraction_point_minutes: pred.predicted_distraction_point_seconds != null ? Math.round(pred.predicted_distraction_point_seconds / 60) : null,
+          predicted_focus_minutes: pred.predicted_focus_seconds != null ? Math.round(pred.predicted_focus_seconds / 60) : null,
+          predicted_completion_percent: Math.round(pred.predicted_completion_probability * 100),
           planned_minutes: minutes,
           confidence: pred.confidence,
           is_first_session: pred.is_first_session,
+          has_enough_data: pred.has_enough_data,
+          previous_subject_sessions: profile?.sessions_count ?? 0,
         },
         pred.is_first_session ? 'warm' : 'playful',
         2,
@@ -73,11 +77,18 @@ export default function SessionSetup() {
     } finally {
       setPredLoading(false);
     }
-  }, [canPredict, goal, minutes, subject, userId]);
+  }, [canPredict, goal, minutes, profile?.sessions_count, subject, userId]);
+
+  useEffect(() => {
+    if (!canPredict) { setPrediction(null); setPredVoice(null); return; }
+    const timer = setTimeout(runPrediction, 450);
+    return () => clearTimeout(timer);
+  }, [canPredict, runPrediction]);
 
   const startNow = async () => {
     if (!userId || !subject) return;
     if (goal.trim().length < 2) { setErr('Please describe your goal.'); return; }
+    if (!durationValid) { setErr('Enter a duration between 1 and 600 minutes.'); return; }
     setSaving(true);
     setErr(null);
     try {
@@ -91,8 +102,9 @@ export default function SessionSetup() {
 
   const twinIntro = useMemo(() => {
     if (!profile) return null;
-    if (profile.sessions_count === 0) return "I don't know your rhythm here yet — this first session teaches me.";
-    return `I've studied ${profile.sessions_count} of your ${subject?.name} sessions. Give me a goal, I'll predict.`;
+    if (profile.sessions_count === 0) return "I'm Reo. I don't know your rhythm here yet — this first session teaches me.";
+    if (profile.sessions_count === 1) return `I'm Reo. I've studied one ${subject?.name} session so far; this second session finishes my calibration.`;
+    return `I'm Reo. I've studied ${profile.sessions_count} of your ${subject?.name} sessions. Give me a goal and let's see if you can beat my prediction.`;
   }, [profile, subject]);
 
   return (
@@ -126,23 +138,18 @@ export default function SessionSetup() {
               value={goal}
               onChangeText={setGoal}
               testID="setup-goal"
-              onBlur={runPrediction}
             />
 
-            <Text style={styles.durationLabel}>Planned duration</Text>
-            <View style={styles.durationRow}>
-              {DURATIONS.map((m) => (
-                <Pressable
-                  key={m}
-                  onPress={() => { setMinutes(m); }}
-                  onPressOut={runPrediction}
-                  style={[styles.duration, minutes === m && styles.durationActive]}
-                  testID={`duration-${m}`}
-                >
-                  <Text style={[styles.durationText, minutes === m && styles.durationTextActive]}>{m}m</Text>
-                </Pressable>
-              ))}
-            </View>
+            <Input
+              label="Planned duration (minutes)"
+              icon="clock"
+              placeholder="Enter exact minutes"
+              value={minutesText}
+              onChangeText={(value) => setMinutesText(value.replace(/\D/g, '').slice(0, 3))}
+              keyboardType="number-pad"
+              maxLength={3}
+              testID="setup-duration"
+            />
           </View>
 
           {/* Prediction card */}
@@ -162,18 +169,18 @@ export default function SessionSetup() {
                           <Text style={styles.predStatL}>units</Text>
                         </View>
                       ) : null}
-                      <View style={styles.predStat}>
+                      {prediction.predicted_focus_seconds != null ? <View style={styles.predStat}>
                         <Text style={styles.predStatV}>{Math.round(prediction.predicted_focus_seconds / 60)}m</Text>
                         <Text style={styles.predStatL}>focus</Text>
-                      </View>
-                      <View style={styles.predStat}>
+                      </View> : null}
+                      {prediction.predicted_distraction_point_seconds != null ? <View style={styles.predStat}>
                         <Text style={styles.predStatV}>min {Math.round(prediction.predicted_distraction_point_seconds / 60)}</Text>
                         <Text style={styles.predStatL}>drift near</Text>
-                      </View>
-                      <View style={styles.predStat}>
+                      </View> : null}
+                      {prediction.has_enough_data ? <View style={styles.predStat}>
                         <Text style={styles.predStatV}>{Math.round(prediction.confidence * 100)}%</Text>
                         <Text style={styles.predStatL}>confidence</Text>
-                      </View>
+                      </View> : <View style={styles.predStat}><Text style={styles.predStatV}>Learning</Text><Text style={styles.predStatL}>calibration</Text></View>}
                     </View>
                     <VoiceBubble message={predVoice} loading={predLoading} />
                   </>
@@ -197,7 +204,7 @@ export default function SessionSetup() {
             testID="start-now-btn"
             style={{ marginTop: spacing.lg, backgroundColor: subject?.color ?? colors.brand }}
           />
-          <Text style={styles.footNote}>The Twin will track your focus quietly. No manual input needed.</Text>
+          <Text style={styles.footNote}>Reo and your Digital Twin will track focus quietly. No manual input needed.</Text>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -219,17 +226,6 @@ const styles = StyleSheet.create({
   title: { fontSize: 28, fontWeight: '800', color: colors.onSurface, marginTop: 4 },
   subtitle: { marginTop: spacing.sm, fontSize: 14, color: colors.onSurfaceMuted, lineHeight: 20 },
   form: { marginTop: spacing.lg },
-  durationLabel: { fontSize: 13, fontWeight: '600', color: colors.onSurfaceMuted, marginBottom: spacing.sm, marginLeft: spacing.xs },
-  durationRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  duration: {
-    paddingHorizontal: 14, paddingVertical: 10,
-    borderRadius: radius.pill,
-    backgroundColor: colors.surfaceTertiary,
-    borderWidth: 1, borderColor: 'transparent',
-  },
-  durationActive: { backgroundColor: colors.brand, borderColor: colors.brand },
-  durationText: { fontSize: 13, fontWeight: '700', color: colors.onSurface },
-  durationTextActive: { color: '#FFF' },
   predCard: {
     marginTop: spacing.lg,
     padding: spacing.md,

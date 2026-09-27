@@ -11,19 +11,31 @@ import VoiceBubble from '@/src/components/VoiceBubble';
 import EvolutionBar from '@/src/components/EvolutionBar';
 import PrimaryButton from '@/src/components/PrimaryButton';
 import { colors, radius, shadow, spacing } from '@/src/theme';
-import { Comparison, twinVoice } from '@/src/api/twin';
+import { Comparison, getSession, getUserId, twinVoice } from '@/src/api/twin';
 
 export default function SessionEnd() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ data?: string }>();
-  const comparison: Comparison | null = useMemo(() => {
+  const params = useLocalSearchParams<{ data?: string; sessionId?: string }>();
+  const initialComparison: Comparison | null = useMemo(() => {
     try {
       return params.data ? JSON.parse(decodeURIComponent(params.data as string)) : null;
     } catch { return null; }
   }, [params.data]);
+  const [comparison, setComparison] = useState<Comparison | null>(initialComparison);
 
   const [voice, setVoice] = useState<string | null>(null);
   const [voiceLoading, setVoiceLoading] = useState(true);
+
+  useEffect(() => {
+    if (comparison || !params.sessionId) return;
+    (async () => {
+      try {
+        const uid = await getUserId();
+        const session = await getSession(uid, params.sessionId as string);
+        if (session.comparison) setComparison(session.comparison);
+      } catch { /* The missing-state message below remains available. */ }
+    })();
+  }, [comparison, params.sessionId]);
 
   useEffect(() => {
     if (!comparison) return;
@@ -47,7 +59,7 @@ export default function SessionEnd() {
         );
         setVoice(msg);
       } catch {
-        setVoice(comparison.beat_prediction ? 'You beat me today. I underestimated you.' : 'Session recorded — I know a little more about how you study now.');
+        setVoice(comparison.beat_prediction ? "You beat me today. I'm Reo, and I underestimated you." : "Session recorded — I'm Reo, and I know a little more about how you study now.");
       } finally {
         setVoiceLoading(false);
       }
@@ -65,7 +77,7 @@ export default function SessionEnd() {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Text style={styles.eyebrow}>SESSION COMPLETE</Text>
         <Text style={styles.title}>
-          {comparison.beat_prediction ? 'You beat the Twin.' : comparison.goal_completed ? 'Goal reached.' : 'Session captured.'}
+          {comparison.beat_prediction ? 'You beat Reo’s prediction.' : comparison.goal_completed ? 'Goal reached.' : 'Session captured.'}
         </Text>
 
         <PressableCard style={styles.hero}>
@@ -99,18 +111,19 @@ export default function SessionEnd() {
               positive={comparison.actual_units != null && comparison.actual_units >= (comparison.predicted_units ?? 0)}
             />
           ) : null}
-          <CompareRow
+          {comparison.predicted_focus_minutes != null ? <CompareRow
             label="Focus time"
             predicted={`${comparison.predicted_focus_minutes} min`}
             actual={`${comparison.actual_focus_minutes} min`}
             positive={comparison.actual_focus_minutes >= comparison.predicted_focus_minutes}
-          />
-          <CompareRow
+          /> : null}
+          {comparison.predicted_distraction_minute != null ? <CompareRow
             label="First drift"
             predicted={`min ${comparison.predicted_distraction_minute}`}
             actual={comparison.actual_first_distraction_minute != null ? `min ${comparison.actual_first_distraction_minute}` : 'none'}
             positive={comparison.actual_first_distraction_minute == null || comparison.actual_first_distraction_minute >= comparison.predicted_distraction_minute}
-          />
+          /> : null}
+          {comparison.predicted_units == null && comparison.predicted_focus_minutes == null ? <View style={styles.calibrationBox}><Text style={styles.calibrationText}>Calibration session recorded. Reo did not make a prediction without enough subject history.</Text></View> : null}
         </View>
 
         <PrimaryButton
@@ -168,6 +181,8 @@ const styles = StyleSheet.create({
   deltaPillText: { color: '#FFF', fontSize: 12, fontWeight: '800' },
   section: { marginTop: spacing.lg, marginBottom: spacing.md, fontSize: 15, fontWeight: '800', color: colors.onSurface, letterSpacing: 0.3 },
   compareGrid: { gap: spacing.sm },
+  calibrationBox: { padding: spacing.md, backgroundColor: colors.brandSoft, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border },
+  calibrationText: { fontSize: 13, lineHeight: 19, color: colors.onSurface },
   compareRow: {
     padding: spacing.md,
     backgroundColor: colors.surfaceSecondary,

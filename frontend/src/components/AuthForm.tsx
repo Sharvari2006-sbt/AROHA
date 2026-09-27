@@ -6,6 +6,7 @@ import AuthLayout from '@/src/components/AuthLayout';
 import Input from '@/src/components/Input';
 import PrimaryButton from '@/src/components/PrimaryButton';
 import { colors, spacing } from '@/src/theme';
+import { loginAccount, registerAccount } from '@/src/api/auth';
 
 type Mode = 'login' | 'signup';
 type Role = 'student' | 'parent' | 'child';
@@ -42,20 +43,26 @@ export default function AuthForm({
   const [err, setErr] = useState<string | null>(null);
 
   const showName = mode === 'signup';
-  const showInvite = role === 'child';
+  const showInvite = role === 'child' && mode === 'signup';
 
   const submit = () => {
     setErr(null);
     if (mode === 'signup' && !name.trim()) return setErr('Please enter your name.');
     if (!email.trim() || !email.includes('@')) return setErr('Please enter a valid email.');
-    if (!password || password.length < 4) return setErr('Password must be at least 4 characters.');
+    if (!password || password.length < 8) return setErr('Password must be at least 8 characters.');
     if (showInvite && !invite.trim()) return setErr('Please enter your parent invite code.');
     setLoading(true);
-    // mock delay then navigate
-    setTimeout(() => {
-      setLoading(false);
-      router.replace(homeRoute as any);
-    }, 700);
+    (async () => {
+      try {
+        if (mode === 'signup') await registerAccount(role, name, email, password, invite);
+        else await loginAccount(role, email, password);
+        router.replace(homeRoute as any);
+      } catch (error) {
+        setErr(error instanceof Error ? error.message : 'Something went wrong. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    })();
   };
 
   return (

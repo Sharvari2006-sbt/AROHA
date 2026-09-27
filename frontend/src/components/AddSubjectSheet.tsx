@@ -30,8 +30,11 @@ export default function AddSubjectSheet({ visible, onClose, onCreated, userId }:
       await createSubject(userId, trimmed);
       setName('');
       onCreated();
-    } catch {
-      setErr('Could not save. Please try again.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      setErr(message.includes('Cannot reach Aroha backend')
+        ? 'Cannot connect to Aroha. Please make sure the backend is running.'
+        : 'Could not save. Please try again.');
     } finally {
       setSaving(false);
     }

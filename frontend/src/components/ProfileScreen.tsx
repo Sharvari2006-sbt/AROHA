@@ -9,6 +9,7 @@ import PrimaryButton from '@/src/components/PrimaryButton';
 import BlobBackground from '@/src/components/BlobBackground';
 import RobotMascot from '@/src/components/RobotMascot';
 import { colors, radius, shadow, spacing } from '@/src/theme';
+import { logoutAccount } from '@/src/api/auth';
 
 type Props = {
   role: 'student' | 'parent' | 'child';
@@ -26,9 +27,14 @@ const MENU: { label: string; icon: keyof typeof import('@expo/vector-icons').Fea
   { label: 'About Aroha', icon: 'info' },
 ];
 
+const SETTINGS_ROUTES: Record<string, string> = {
+  'Preferences': 'preferences', 'Notifications': 'notifications', 'Privacy & Data': 'privacy', 'Help Center': 'help', 'About Aroha': 'about',
+};
+
 export default function ProfileScreen({ role, name, email, stats, testID }: Props) {
   const router = useRouter();
   const initial = name.charAt(0).toUpperCase();
+  const menu = role === 'parent' ? MENU : [{ label: 'Focus Shield', icon: 'lock' as const }, ...MENU];
   return (
     <ScreenShell greeting="ACCOUNT" title="Profile" subtitle="Settings, preferences and your twin." testID={testID}>
       <PressableCard style={styles.hero}>
@@ -56,8 +62,8 @@ export default function ProfileScreen({ role, name, email, stats, testID }: Prop
 
       <Text style={styles.section}>Settings</Text>
       <View style={{ gap: spacing.sm }}>
-        {MENU.map((m) => (
-          <PressableCard key={m.label} style={styles.menuItem} testID={`menu-${m.label.toLowerCase().replace(/\s+/g,'-')}`}>
+        {menu.map((m) => (
+          <PressableCard key={m.label} style={styles.menuItem} testID={`menu-${m.label.toLowerCase().replace(/\s+/g,'-')}`} onPress={() => router.push(m.label === 'Focus Shield' ? '/focus-shield' as any : `/settings/${SETTINGS_ROUTES[m.label]}` as any)}>
             <View style={styles.menuIcon}><Feather name={m.icon} size={16} color={colors.onSurface} /></View>
             <Text style={styles.menuLabel}>{m.label}</Text>
             <Feather name="chevron-right" size={18} color={colors.onSurfaceMuted} />
@@ -69,7 +75,7 @@ export default function ProfileScreen({ role, name, email, stats, testID }: Prop
         label="Log out"
         variant="secondary"
         style={{ marginTop: spacing.lg }}
-        onPress={() => router.replace('/welcome')}
+        onPress={async () => { await logoutAccount(); router.replace('/welcome'); }}
         testID="logout-btn"
       />
     </ScreenShell>

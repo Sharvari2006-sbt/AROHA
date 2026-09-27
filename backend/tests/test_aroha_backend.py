@@ -66,11 +66,11 @@ class TestPredict:
         pred = body['prediction']
         assert pred['is_first_session'] is True
         assert body['parsed_goal_units'] == 15
-        # 80% of 15 = 12
-        assert pred['predicted_units'] == 12
-        assert pred['predicted_focus_seconds'] > 0
-        assert pred['predicted_distraction_point_seconds'] > 0
-        assert 0 < pred['confidence'] <= 1
+        assert pred['has_enough_data'] is False
+        assert pred['predicted_units'] is None
+        assert pred['predicted_focus_seconds'] is None
+        assert pred['predicted_distraction_point_seconds'] is None
+        assert pred['confidence'] == 0
 
     def test_predict_without_units(self, api_client, base_url, user_id):
         r = api_client.post(f'{base_url}/api/sessions/predict', json={
@@ -100,7 +100,8 @@ class TestSessionLifecycle:
         assert sess['subject_id'] == pytest.subject_id
         assert sess['goal_units_target'] == 10
         assert sess['planned_duration_seconds'] == 20 * 60
-        assert sess['prediction_snapshot']['predicted_units'] == 8  # 80%
+        assert sess['prediction_snapshot']['predicted_units'] is None
+        assert sess['prediction_snapshot']['has_enough_data'] is False
         assert sess['ended_at'] is None
         assert '_id' not in sess
         pytest.session_id = sess['id']
@@ -114,8 +115,8 @@ class TestSessionLifecycle:
         })
         assert r.status_code == 404
 
-    def test_end_session_goal_completed_awards_plus_six(self, api_client, base_url, user_id):
-        # Complete the goal (units_done >= target) within planned time -> +6 XP.
+    def test_end_session_goal_completed_awards_verified_goal_points(self, api_client, base_url, user_id):
+        # Goal is verified, but active time is below the 80% duration threshold: +3.
         payload = {
             'ended_early': False,
             'units_done': 10,
@@ -133,12 +134,12 @@ class TestSessionLifecycle:
         assert s['goal_completed'] is True
         assert s['distractions'] == 1
         assert s['breaks'] == 1
-        assert s['energy_delta'] == 6
+        assert s['energy_delta'] == 3
         comp = body['comparison']
-        assert comp['energy_delta'] == 6
-        assert comp['predicted_units'] == 8
+        assert comp['energy_delta'] == 3
+        assert comp['predicted_units'] is None
         assert comp['actual_units'] == 10
-        assert comp['beat_prediction'] is True
+        assert comp['beat_prediction'] is False
         assert comp['goal_completed'] is True
         assert comp['actual_first_distraction_minute'] == 5
         assert 'robot' in comp
@@ -147,6 +148,23 @@ class TestSessionLifecycle:
         prof = body['profile']
         assert prof['sessions_count'] == 1
         assert prof['goal_completion_rate'] == 1.0
+        assert prof['avg_duration_seconds'] == 900
+        assert prof['distraction_sessions_count'] == 1
+        assert prof['post_distraction_completion_rate'] == 1.0
+        assert prof['prediction_accuracy'] == 0
+        assert prof['predictions_count'] == 0
+        assert 'daily_consistency_score' in prof
+        assert 'weekly_consistency_score' in prof
+        assert comp['actual_duration_seconds'] == 900
+        assert comp['distractions'] == 1
+        assert comp['breaks'] == 1
+
+    def test_session_result_is_persisted(self, api_client, base_url, user_id):
+        r = api_client.get(f'{base_url}/api/sessions/{pytest.session_id}', params={'user_id': user_id})
+        assert r.status_code == 200, r.text
+        session = r.json()
+        assert session['comparison']['actual_units'] == 10
+        assert session['comparison']['predicted_units'] is None
 
     def test_end_session_double_end_returns_400(self, api_client, base_url):
         r = api_client.post(f'{base_url}/api/sessions/{pytest.session_id}/end', json={
@@ -160,7 +178,7 @@ class TestSessionLifecycle:
         })
         assert r.status_code == 404
 
-    def test_second_prediction_no_longer_first(self, api_client, base_url, user_id):
+    def test_second_session_is_still_calibration(self, api_client, base_url, user_id):
         r = api_client.post(f'{base_url}/api/sessions/predict', json={
             'user_id': user_id,
             'subject_id': pytest.subject_id,
@@ -170,6 +188,54 @@ class TestSessionLifecycle:
         assert r.status_code == 200
         pred = r.json()['prediction']
         assert pred['is_first_session'] is False
+        assert pred['has_enough_data'] is False
+        assert pred['predicted_units'] is None
+
+    def test_prediction_starts_only_after_two_completed_sessions(self, api_client, base_url, user_id):
+        created = api_client.post(f'{base_url}/api/sessions', json={
+            'user_id': user_id,
+            'subject_id': pytest.subject_id,
+            'goal': 'Solve 10 questions',
+            'planned_duration_minutes': 20,
+        })
+        assert created.status_code == 200
+        second_id = created.json()['session']['id']
+        assert created.json()['session']['prediction_snapshot']['has_enough_data'] is False
+        ended = api_client.post(f'{base_url}/api/sessions/{second_id}/end', json={
+            'ended_early': False,
+            'units_done': 8,
+            'active_seconds': 1000,
+            'events': [],
+        })
+        assert ended.status_code == 200
+        predicted = api_client.post(f'{base_url}/api/sessions/predict', json={
+            'user_id': user_id,
+            'subject_id': pytest.subject_id,
+            'goal': 'Solve 10 questions',
+            'planned_duration_minutes': 20,
+        })
+        assert predicted.status_code == 200
+        prediction = predicted.json()['prediction']
+        assert prediction['has_enough_data'] is True
+        assert prediction['predicted_units'] is not None
+        assert prediction['predicted_focus_seconds'] is not None
+
+    def test_subject_profiles_remain_isolated(self, api_client, base_url, user_id):
+        created = api_client.post(f'{base_url}/api/subjects', json={
+            'user_id': user_id, 'name': 'TEST_Operating Systems'
+        })
+        assert created.status_code == 200
+        other_id = created.json()['id']
+        detail = api_client.get(f'{base_url}/api/subjects/{other_id}', params={'user_id': user_id}).json()
+        assert detail['profile']['sessions_count'] == 0
+        assert detail['profile']['avg_focus_seconds'] == 0
+        prediction = api_client.post(f'{base_url}/api/sessions/predict', json={
+            'user_id': user_id,
+            'subject_id': other_id,
+            'goal': 'Solve 10 questions',
+            'planned_duration_minutes': 20,
+        }).json()['prediction']
+        assert prediction['is_first_session'] is True
 
 
 # ---------- Robot ----------
@@ -181,8 +247,8 @@ def test_robot_state_shape(api_client, base_url, user_id):
         assert k in d, f'missing {k}'
     assert 1 <= d['stage'] <= 5
     assert 0 <= d['stage_progress'] <= 100
-    # After +6 from previous test plus starter 10 = 16
-    assert d['xp'] >= 16
+    assert d['xp'] >= 3
+    assert d['daily_xp'] <= d['daily_xp_cap'] == 10
 
 
 # ---------- Voice ----------

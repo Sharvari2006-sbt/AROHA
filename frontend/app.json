@@ -28,6 +28,18 @@
     "plugins": [
       "expo-router",
       [
+        "expo-app-blocker",
+        {
+          "android": {
+            "notificationTitle": "Aroha Focus Shield",
+            "notificationText": "{appName} is paused during study time.",
+            "overlay": {
+              "icon": "./assets/images/icon.png"
+            }
+          }
+        }
+      ],
+      [
         "expo-splash-screen",
         {
           "image": "./assets/images/splash-image.png",
@@ -39,6 +51,50 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "build": {
+          "experimental": {
+            "ios": {
+              "appExtensions": [
+                {
+                  "bundleIdentifier": "com.emergent.twinlearninghub.yijlde.ShieldConfiguration",
+                  "targetName": "ShieldConfiguration",
+                  "entitlements": {
+                    "com.apple.developer.family-controls": true,
+                    "com.apple.security.application-groups": [
+                      "group.expo.app-blocker"
+                    ]
+                  }
+                },
+                {
+                  "bundleIdentifier": "com.emergent.twinlearninghub.yijlde.ShieldAction",
+                  "targetName": "ShieldAction",
+                  "entitlements": {
+                    "com.apple.developer.family-controls": true,
+                    "com.apple.security.application-groups": [
+                      "group.expo.app-blocker"
+                    ]
+                  }
+                },
+                {
+                  "bundleIdentifier": "com.emergent.twinlearninghub.yijlde.DeviceActivityMonitor",
+                  "targetName": "DeviceActivityMonitor",
+                  "entitlements": {
+                    "com.apple.developer.family-controls": true,
+                    "com.apple.security.application-groups": [
+                      "group.expo.app-blocker"
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        },
+        "projectId": "8ae7ac3b-ecd4-4af7-af88-2e30169479b7"
+      }
     }
   }
 }

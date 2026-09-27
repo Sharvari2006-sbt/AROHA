@@ -20,15 +20,15 @@ type Props = {
 function stageParams(stage: number) {
   switch (stage) {
     case 5:
-      return { scale: 1.18, accent: '#7DD3C0', glow: 1, antenna: true, halo: true };
+      return { scale: 1.2, accent: '#7DD3C0', glow: 1, antenna: true, halo: true };
     case 4:
-      return { scale: 1.12, accent: '#9CAF88', glow: 0.6, antenna: true, halo: false };
+      return { scale: 1.1, accent: '#9CAF88', glow: 0.6, antenna: true, halo: false };
     case 3:
-      return { scale: 1.06, accent: '#E9C46A', glow: 0.35, antenna: true, halo: false };
+      return { scale: 1.0, accent: '#E9C46A', glow: 0.35, antenna: true, halo: false };
     case 2:
-      return { scale: 1.02, accent: '#F4A261', glow: 0.15, antenna: true, halo: false };
+      return { scale: 0.9, accent: '#F4A261', glow: 0.18, antenna: true, halo: false };
     default:
-      return { scale: 0.95, accent: '#F4A261', glow: 0, antenna: false, halo: false };
+      return { scale: 0.76, accent: '#F4A261', glow: 0, antenna: false, halo: false };
   }
 }
 
@@ -72,6 +72,8 @@ function RobotBody({ mood, stage }: { mood: RobotMood; stage: number }) {
     const blink = Math.sin(t * 1.6) > 0.985 ? 0.1 : 1;
     if (leftEye.current) leftEye.current.scale.y = blink;
     if (rightEye.current) rightEye.current.scale.y = blink;
+    if (armLeft.current) armLeft.current.rotation.z = mood === 'celebrating' ? 0.9 + Math.sin(t * 6) * 0.18 : Math.sin(t * 1.2) * 0.04;
+    if (armRight.current && mood !== 'wave') armRight.current.rotation.z = mood === 'celebrating' ? -0.9 - Math.sin(t * 6) * 0.18 : -Math.sin(t * 1.2) * 0.04;
     // antenna pulse
     if (antennaBall.current) {
       const s = 1 + Math.sin(t * 2.5) * 0.12;
@@ -117,9 +119,23 @@ function RobotBody({ mood, stage }: { mood: RobotMood; stage: number }) {
         </mesh>
       )}
 
+      {stage >= 3 && (
+        <>
+          <mesh position={[-0.67, 0.62, 0]}><sphereGeometry args={[0.12, 20, 20]} /><meshStandardMaterial color={params.accent} metalness={0.35} /></mesh>
+          <mesh position={[0.67, 0.62, 0]}><sphereGeometry args={[0.12, 20, 20]} /><meshStandardMaterial color={params.accent} metalness={0.35} /></mesh>
+        </>
+      )}
+      {stage >= 4 && (
+        <>
+          <mesh position={[0, -0.35, 0.405]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.23, 0.025, 12, 40]} /><meshStandardMaterial color={params.accent} emissive={params.accent} emissiveIntensity={params.glow} /></mesh>
+          <mesh position={[-0.52, -0.3, 0]}><boxGeometry args={[0.12, 0.42, 0.5]} /><meshStandardMaterial color={params.accent} metalness={0.5} roughness={0.25} /></mesh>
+          <mesh position={[0.52, -0.3, 0]}><boxGeometry args={[0.12, 0.42, 0.5]} /><meshStandardMaterial color={params.accent} metalness={0.5} roughness={0.25} /></mesh>
+        </>
+      )}
+
       {/* head */}
       <mesh position={[0, 0.55, 0]} castShadow>
-        <boxGeometry args={[1.2, 1.05, 1.05]} />
+        <boxGeometry args={stage === 1 ? [1.34, 1.16, 1.08] : [1.2, 1.05, 1.05]} />
         <meshStandardMaterial color="#FFFFFF" roughness={0.35} metalness={0.15} />
       </mesh>
 
@@ -132,11 +148,11 @@ function RobotBody({ mood, stage }: { mood: RobotMood; stage: number }) {
       {/* eyes */}
       <mesh ref={leftEye} position={[-0.22, 0.6, 0.57]}>
         <sphereGeometry args={[0.09, 20, 20]} />
-        <meshStandardMaterial color="#E9C46A" emissive="#E9C46A" emissiveIntensity={0.7} />
+        <meshStandardMaterial color="#E9C46A" emissive="#E9C46A" emissiveIntensity={0.7 + params.glow} />
       </mesh>
       <mesh ref={rightEye} position={[0.22, 0.6, 0.57]}>
         <sphereGeometry args={[0.09, 20, 20]} />
-        <meshStandardMaterial color="#E9C46A" emissive="#E9C46A" emissiveIntensity={0.7} />
+        <meshStandardMaterial color="#E9C46A" emissive="#E9C46A" emissiveIntensity={0.7 + params.glow} />
       </mesh>
 
       {/* cheek blush */}
@@ -157,7 +173,7 @@ function RobotBody({ mood, stage }: { mood: RobotMood; stage: number }) {
 
       {/* body */}
       <mesh position={[0, -0.35, 0]}>
-        <boxGeometry args={[0.9, 0.75, 0.75]} />
+        <boxGeometry args={stage === 1 ? [0.72, 0.58, 0.68] : stage === 2 ? [0.82, 0.68, 0.72] : [0.9, 0.75, 0.75]} />
         <meshStandardMaterial color="#FFFFFF" roughness={0.4} />
       </mesh>
 
@@ -215,5 +231,5 @@ export default function Robot3D({ mood = 'idle', stage = 1, size = 200, testID }
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'center', justifyContent: 'center' },
-  canvas: { flex: 1, backgroundColor: 'transparent' },
+  canvas: { width: '100%', height: '100%', backgroundColor: 'transparent' },
 });

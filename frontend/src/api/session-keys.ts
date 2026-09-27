@@ -1,0 +1,1 @@
+// Expo SecureStore keys may contain only letters, numbers, `.`, `-`, and `_`.// Keep this shared so authentication and Digital Twin requests always use the// exact same valid key.export const ACCESS_TOKEN_KEY = 'aroha.access_token';
